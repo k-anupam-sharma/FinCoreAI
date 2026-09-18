@@ -774,3 +774,47 @@ Phases 7–9 now persist validation, duplicate similarity, vendor risk, budget i
 - [ ] Reprocessing the same invoice updates one decision row rather than inserting duplicates.
 - [ ] Invoice status remains `Pending` for every recommendation.
 - [ ] Lint, TypeScript, production build, backend deployment, and one real WhatsApp decision response pass.
+
+---
+
+## Phase 11 — Natural-language financial Q&A
+
+### Context
+
+The current active-user text path still returns a generic echo. Phase 11 lets an onboarded user ask controlled financial questions in normal language, such as monthly spend, remaining budget, pending invoices, risky invoices, top vendors, and cash flow. Numbers are computed from Enter Cloud data by fixed query branches; Qwen 3.7 Plus may only turn the returned facts into a concise explanation and may not invent or calculate values.
+
+### Design decisions
+
+- **Identity/security:** only active `whatsapp_accounts` links can access Q&A; all queries are scoped by the linked user's `company_id`. Unlinked text remains onboarding behavior.
+- **Intent routing:** implement a deterministic keyword/regex router ported from `src/lib/fincore/queries.ts`: overview/spend, top vendor, pending invoices, risk alerts, over-budget departments, remaining budget, affordability, cash flow forecast, and spend contributors. Unknown questions receive a supported-topics prompt.
+- **Controlled data access:** each intent uses explicit Supabase client queries with fixed selected columns and bounded result sizes. No raw SQL, user-provided table/column names, arbitrary filters, or client-side privilege decisions.
+- **AI explanation:** send the structured fact payload plus the original question to Qwen 3.7 Plus using the existing OpenAI Chat Completions integration, `stream:false`, temperature 0, and a strict instruction to quote only supplied facts. If AI fails, return the deterministic fact summary instead of failing the Q&A request.
+- **Response limits:** keep WhatsApp responses concise and cap lists to five rows. Preserve forecast disclaimers and clearly state when no budget or data exists.
+- **No writes:** Phase 11 only reads business data; it does not create decisions, change invoice status, or mutate budgets.
+
+### Files
+
+- `supabase/functions/whatsapp-webhook/index.ts` — controlled Q&A intent router, company-scoped queries, Qwen explanation, and active-user text routing.
+- `docs/demo-script.md` — Q&A examples, unsupported questions, and company-isolation checks.
+- `.enter/plans/fincore-ai-architecture.md` — Phase 11 checklist and verification evidence.
+
+### Implementation checklist (Phase 11)
+
+- [ ] Add explicit Q&A intent classification for overview, spend, vendors, pending invoices, risks, budgets, affordability, and forecast questions.
+- [ ] Add company-scoped read-only query handlers with bounded output and no arbitrary SQL.
+- [ ] Add a deterministic fallback response for unknown intents and empty datasets.
+- [ ] Add Qwen fact-grounded explanation using the existing AI secret and project attribution headers.
+- [ ] Route active-user text through Q&A before the generic echo fallback, while preserving `menu` behavior.
+- [ ] Keep Q&A read-only and preserve forecast disclaimers.
+- [ ] Deploy and append the Phase 11 demo walkthrough.
+
+### Verification checklist (Phase 11)
+
+- [ ] "How much did we spend this month?" returns the scoped company's spend and budget utilization.
+- [ ] "Which vendor has the highest spend?" returns bounded ranked vendors from that company only.
+- [ ] Pending/risk/budget/affordability/forecast questions return the corresponding controlled facts.
+- [ ] Unknown questions return supported topics without an AI hallucinated answer.
+- [ ] AI failure still returns deterministic facts and never exposes internal errors.
+- [ ] A user linked to Company A cannot receive Company B's invoices, vendors, budgets, or transactions.
+- [ ] Q&A does not insert/update any business rows.
+- [ ] Lint, TypeScript, production build, backend deployment, and real WhatsApp Q&A responses pass.
