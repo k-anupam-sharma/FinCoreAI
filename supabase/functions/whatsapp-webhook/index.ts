@@ -216,16 +216,14 @@ const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "
 
 const MENU_TEXT = [
   "Main menu",
-  "1. Analyze Invoice",
-  "2. Financial Overview",
-  "3. Vendor Intelligence",
-  "4. Budget & Spending",
-  "5. Cash Flow Forecast",
-  "6. Risk & Alerts",
-  "7. Ask FinCore AI",
-  "8. Account / Help",
-  "",
-  "Choose a number, or ask me in plain English. Each option now connects to a live FinCore workflow.",
+  "1 — upload invoice",
+  "2 — financial overview",
+  "3 — top vendors",
+  "4 — budget status",
+  "5 — 30-day forecast",
+  "6 — risk alerts",
+  "7 — ask a finance question",
+  "8 — account/help",
 ].join(NL);
 
 const GREETING_PATTERN = /^(hi|hello|hey|menu|help)$/i;
