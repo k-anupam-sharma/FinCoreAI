@@ -591,7 +591,9 @@ async function enrichInvoiceIntelligence(
   invoiceId: string,
   companyId: string,
 ): Promise<{ summary: string }> {
+  let stage = "start";
   try {
+    stage = "load current invoice";
     const { data: current, error: currentError } = await supabase
       .from("invoices")
       .select("invoice_id,vendor_id,subtotal,tax_amount,total_amount,date,due_date,po_number,notes")
@@ -601,6 +603,7 @@ async function enrichInvoiceIntelligence(
     if (currentError) throw currentError;
     if (!current) throw new Error("Analyzed invoice not found");
 
+    stage = "load current analysis";
     const { data: currentAnalysis, error: currentAnalysisError } = await supabase
       .from("invoice_analysis")
       .select("extracted_fields")
@@ -610,6 +613,7 @@ async function enrichInvoiceIntelligence(
     const currentFields = (currentAnalysis?.extracted_fields ?? {}) as Record<string, unknown>;
     const currentNumber = stringOrNull(currentFields.invoice_number);
 
+    stage = "load vendor invoice history";
     const { data: history, error: historyError } = await supabase
       .from("invoices")
       .select("invoice_id,vendor_id,subtotal,tax_amount,total_amount,date,due_date,po_number,notes")
@@ -619,6 +623,7 @@ async function enrichInvoiceIntelligence(
     if (historyError) throw historyError;
     const candidates = (history ?? []) as DuplicateHistoryInvoice[];
     const candidateIds = candidates.map((item) => item.invoice_id);
+    stage = "load prior invoice analyses";
     const { data: historyAnalyses, error: historyAnalysisError } = candidateIds.length
       ? await supabase.from("invoice_analysis").select("invoice_id,extracted_fields,duplicate_score").in("invoice_id", candidateIds)
       : { data: [], error: null };
@@ -631,6 +636,7 @@ async function enrichInvoiceIntelligence(
     }).filter((match) => match.similarity > 0).sort((a, b) => b.similarity - a.similarity);
     const bestDuplicate = duplicateMatches[0] ?? null;
 
+    stage = "load vendor profile";
     const { data: vendor, error: vendorError } = await supabase
       .from("vendors")
       .select("vendor_id,name,status,risk_profile,onboarded_date")
@@ -644,6 +650,7 @@ async function enrichInvoiceIntelligence(
     const averageSpend = vendorInvoices.length ? totalSpend / vendorInvoices.length : 0;
     const ninetyDaysAgo = Date.now() - 90 * 86400000;
     const recentInvoiceCount = vendorInvoices.filter((item) => new Date(item.date).getTime() >= ninetyDaysAgo).length;
+    stage = "load vendor payments";
     const { data: payments, error: paymentsError } = await supabase
       .from("payments")
       .select("invoice_id,status,payment_date")
@@ -656,6 +663,7 @@ async function enrichInvoiceIntelligence(
       return invoice && invoice.due_date && payment.payment_date && new Date(payment.payment_date).getTime() <= new Date(invoice.due_date).getTime();
     }).length;
     const onTimeRate = completedPayments.length ? onTimePayments / completedPayments.length : null;
+    stage = "load bank changes";
     const { data: bankChanges, error: bankError } = await supabase
       .from("vendor_bank_changes")
       .select("changed_at")
@@ -688,17 +696,19 @@ async function enrichInvoiceIntelligence(
       recent_bank_change: (bankChanges ?? []).length > 0,
       reasons: vendorReasons,
     };
-    const { error: analysisUpdateError } = await supabase.from("invoice_analysis").update({
+    stage = "save duplicate and vendor intelligence";
+    const { error: analysisUpdateError } = await supabase.from("invoice_analysis").upsert({
+      invoice_id: invoiceId,
       duplicate_score: bestDuplicate?.similarity ?? 0,
       duplicate_evidence: { best_match: bestDuplicate, matches: duplicateMatches.slice(0, 5) },
       vendor_risk_snapshot: vendorSnapshot,
-    }).eq("invoice_id", invoiceId);
+    }, { onConflict: "invoice_id" });
     if (analysisUpdateError) throw analysisUpdateError;
     return {
       summary: `Duplicate score: ${bestDuplicate?.similarity ?? 0}%. Vendor risk: ${computedRisk} (${vendorScore}/100). ${bestDuplicate?.evidence[0] ?? vendorReasons[0]}`,
     };
   } catch (error) {
-    console.error("whatsapp-webhook: invoice intelligence failed", error instanceof Error ? error.message : error);
+    console.error(`whatsapp-webhook: invoice intelligence failed at ${stage}`, error instanceof Error ? error.message : error);
     return { summary: "Duplicate and vendor intelligence is temporarily unavailable; the extracted invoice remains safely stored." };
   }
 }
@@ -1266,22 +1276,22 @@ Deno.serve(async (req) => {
           .maybeSingle();
         if (linkedUserError) throw linkedUserError;
         if (!linkedUser) throw new Error("Linked WhatsApp account has no user record");
+        const interimReply = "OCR output will be ready shortly.";
+        const { error: interimInsertError } = await supabase.from("conversation_messages").insert({
+          session_id: sessionId,
+          direction: "outbound",
+          message_type: "text",
+          content: interimReply,
+        });
+        if (interimInsertError) throw interimInsertError;
+        const interimSendResult = await sendWhatsAppText(waId, interimReply, ACCESS_TOKEN, PHONE_NUMBER_ID);
+        if (!interimSendResult.success) {
+          console.error(`whatsapp-webhook: failed to send OCR interim reply to ${waId}: ${interimSendResult.error}`);
+        }
         const ingestResult = await ingestWhatsAppInvoice(supabase, summary, linkedUser.company_id, linkedAccount.user_id);
         if (!ingestResult.success) {
           replyText = ingestResult.errorMessage;
         } else if (ingestResult.invoiceId && ingestResult.storagePath && ingestResult.mimeType) {
-          const interimReply = "OCR output will be ready shortly.";
-          const { error: interimInsertError } = await supabase.from("conversation_messages").insert({
-            session_id: sessionId,
-            direction: "outbound",
-            message_type: "text",
-            content: interimReply,
-          });
-          if (interimInsertError) throw interimInsertError;
-          const interimSendResult = await sendWhatsAppText(waId, interimReply, ACCESS_TOKEN, PHONE_NUMBER_ID);
-          if (!interimSendResult.success) {
-            console.error(`whatsapp-webhook: failed to send OCR interim reply to ${waId}: ${interimSendResult.error}`);
-          }
           const analysisResult = await analyzeStoredInvoice(
             supabase,
             ingestResult.invoiceId,
