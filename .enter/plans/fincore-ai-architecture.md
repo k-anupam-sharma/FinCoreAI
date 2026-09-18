@@ -1065,3 +1065,37 @@ The current Qwen layer only receives facts from a fixed keyword router, so it ca
 - [ ] AI timeout/malformed plan/fact answer falls back safely without mutations.
 - [ ] Existing `alerts`, invoice actions, forecasts, menu numbers, and clear-chat behavior remain unchanged.
 - [ ] Lint, TypeScript, production build, backend deployment, and in-scope/out-of-scope WhatsApp tests pass.
+
+---
+
+## Separate lightweight chatbot model
+
+### Context
+
+Qwen 3.7 Plus is currently used for OCR and also for Q&A/classification. This change separates responsibilities: Qwen becomes OCR/structured extraction only, while the lighter **Gemini 3.1 Flash Lite Preview** handles conversational classification, dataset Q&A planning, and fact-grounded explanations.
+
+### Design decisions
+
+- **Model split:** keep `alibaba/qwen-3.7-plus` only in `analyzeStoredInvoice`; route `explainFinancialFacts`, natural-language intent classification, and guarded dataset query planning through `google/gemini-3.1-flash-lite-preview`.
+- **Protocol:** use Enter AI All's Gemini `streamGenerateContent` endpoint with `x-goog-api-key`, Gemini-native `contents`/`systemInstruction`, and SSE response parsing. Do not send the token as an Authorization header to this route.
+- **Storage/database access:** the chatbot may read only company-scoped approved Database facts and invoice file metadata. It must not have unrestricted cross-company access, raw Storage browsing, secrets, arbitrary SQL, or write authority. Invoice image bytes remain an OCR-only path.
+- **Guardrails:** preserve query-plan allowlists, 100-row cap, company scope, fact-only prompts, action authorization, and out-of-scope rejection. The chatbot cannot approve, mutate, or delete financial records.
+
+### Implementation checklist
+
+- [ ] Add a Gemini text helper for non-streaming conversational use by collecting the Gemini SSE response with timeout handling.
+- [ ] Route fact explanation, natural-language intent classification, and dataset query planning to Gemini Lite.
+- [ ] Remove Qwen usage from chatbot/Q&A/classifier paths and retain Qwen only for invoice OCR/extraction.
+- [ ] Preserve Database allowlists, company isolation, Storage privacy, and backend action authorization.
+- [ ] Update docs to describe the model split and protected access boundary.
+- [ ] Deploy and verify both OCR and chatbot paths separately.
+
+### Verification checklist
+
+- [ ] Invoice image still uses Qwen and produces structured extraction.
+- [ ] General English Q&A uses Gemini Lite and reads only scoped Database facts.
+- [ ] Dataset questions never expose another company or raw Storage contents.
+- [ ] Out-of-scope questions are rejected by the guardrail.
+- [ ] AI timeout/credit failure falls back safely without mutations.
+- [ ] Workflow actions still use backend authorization and are not delegated to Gemini.
+- [ ] Lint, TypeScript, tests, production build, and backend deployment pass.
