@@ -730,3 +730,47 @@ Phase 8 now produces duplicate and vendor-risk facts, but it does not show how a
 - [ ] Anomaly score is capped at 100 and every persisted signal has a description and weight.
 - [ ] `invoice_analysis` remains one row per invoice and invoice status remains `Pending`.
 - [ ] Lint, TypeScript, production build, backend deployment, and one real WhatsApp budget/anomaly response pass.
+
+---
+
+## Phase 10 — Deterministic decision engine + explainable recommendation
+
+### Context
+
+Phases 7–9 now persist validation, duplicate similarity, vendor risk, budget impact, and anomaly facts. Phase 10 applies the established deterministic decision rules to those facts and records an auditable recommendation. The model is not asked to decide; its only prior role was extracting visible invoice facts.
+
+### Design decisions
+
+- **Rule order:** reuse the exact precedence from `src/lib/fincore/decisionEngine.ts`: duplicate threshold → critical validation issues → high vendor risk → recent bank change → budget defer/review thresholds → anomaly threshold → APPROVE default.
+- **Thresholds:** use the same company-specific `decision_rules_config` values with established defaults when absent.
+- **Persistence:** insert exactly one `decisions` row per invoice using a deterministic `DEC-<8 hex>` ID; if a decision already exists for that invoice, update it rather than creating a second row. Store action, recommendation, reasons, confidence, and `decided_by='system_rules'`.
+- **Invoice status:** do not change invoice status automatically; the action is a recommendation until Phase 12's explicit workflow action path. This avoids silently approving or rejecting user financial records.
+- **Explanation:** send a final WhatsApp message with action, recommendation, and ordered reasons from the engine. No new AI call is needed; the reasons list is the source of truth.
+- **Failure isolation:** if decision persistence fails, preserve all prior analysis rows and send a safe retry message rather than claiming a decision was saved.
+
+### Files
+
+- `supabase/functions/whatsapp-webhook/index.ts` — rule evaluation, decision upsert, and final WhatsApp response.
+- `docs/demo-script.md` — Phase 10 examples and threshold-boundary cases.
+- `.enter/plans/fincore-ai-architecture.md` — Phase 10 checklist and verification evidence.
+
+### Implementation checklist (Phase 10)
+
+- [ ] Add deterministic decision evaluation matching `decisionEngine.ts` precedence and labels.
+- [ ] Load validation, duplicate, vendor-risk, budget, and anomaly facts from the existing invoice records.
+- [ ] Load company thresholds with the same safe defaults used in Phase 9.
+- [ ] Upsert exactly one `decisions` row with recommendation, action-derived label, reasons, and `decided_by='system_rules'`.
+- [ ] Keep invoice status unchanged and do not perform approval/rejection side effects.
+- [ ] Send a WhatsApp summary with action and explainable reasons.
+- [ ] Deploy and append the Phase 10 demo walkthrough.
+
+### Verification checklist (Phase 10)
+
+- [ ] A high duplicate score produces `REVIEW` / `Hold - Duplicate Suspected` before other rules.
+- [ ] Two critical validation issues produce `REJECT`; one critical issue produces `REVIEW`.
+- [ ] High vendor risk or recent bank change produces `REVIEW`.
+- [ ] Budget utilization at/above defer threshold produces `DEFER`; review threshold produces `REVIEW`.
+- [ ] Anomaly score at/above threshold produces `REVIEW`; otherwise the default is `APPROVE`.
+- [ ] Reprocessing the same invoice updates one decision row rather than inserting duplicates.
+- [ ] Invoice status remains `Pending` for every recommendation.
+- [ ] Lint, TypeScript, production build, backend deployment, and one real WhatsApp decision response pass.
