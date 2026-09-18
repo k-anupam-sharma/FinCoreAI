@@ -520,6 +520,189 @@ async function analyzeStoredInvoice(
   }
 }
 
+interface DuplicateHistoryInvoice {
+  invoice_id: string;
+  vendor_id: string;
+  subtotal: number;
+  tax_amount: number;
+  total_amount: number;
+  date: string;
+  due_date: string | null;
+  po_number: string | null;
+  notes: string | null;
+}
+
+function normalizedWords(value: string | null | undefined): Set<string> {
+  return new Set((value ?? "").toLowerCase().split(/[^a-z0-9]+/).filter(Boolean));
+}
+
+function wordSimilarity(a: string | null | undefined, b: string | null | undefined): number {
+  const left = normalizedWords(a);
+  const right = normalizedWords(b);
+  if (!left.size || !right.size) return 0;
+  let intersection = 0;
+  for (const word of left) if (right.has(word)) intersection++;
+  return intersection / (left.size + right.size - intersection);
+}
+
+function dateDistanceDays(a: string, b: string): number {
+  const left = new Date(a).getTime();
+  const right = new Date(b).getTime();
+  return Number.isFinite(left) && Number.isFinite(right) ? Math.abs(left - right) / 86400000 : Infinity;
+}
+
+function scoreDuplicateInvoice(
+  current: DuplicateHistoryInvoice,
+  candidate: DuplicateHistoryInvoice,
+  currentNumber: string | null,
+  candidateNumber: string | null,
+): { score: number; evidence: string[] } {
+  let score = 0;
+  const evidence: string[] = [];
+  if (currentNumber && candidateNumber && currentNumber.toLowerCase() === candidateNumber.toLowerCase()) {
+    score += 45;
+    evidence.push(`Exact invoice number match: ${candidate.invoice_id}`);
+  }
+  const maxAmount = Math.max(current.total_amount, candidate.total_amount, 1);
+  const amountDifference = Math.abs(current.total_amount - candidate.total_amount) / maxAmount;
+  if (amountDifference <= 0.2) {
+    score += Math.round(30 * (1 - amountDifference / 0.2));
+    if (amountDifference <= 0.02) evidence.push(`Nearly identical total amount to ${candidate.invoice_id}`);
+  }
+  const days = dateDistanceDays(current.date, candidate.date);
+  if (days <= 30) {
+    score += Math.round(15 * (1 - days / 30));
+    if (days <= 3) evidence.push(`Invoice dates are within ${Math.round(days)} day(s)`);
+  }
+  if (current.po_number && candidate.po_number && current.po_number.toLowerCase() === candidate.po_number.toLowerCase()) {
+    score += 25;
+    evidence.push(`Same purchase order as ${candidate.invoice_id}`);
+  }
+  const descriptionSimilarity = wordSimilarity(current.notes, candidate.notes);
+  if (descriptionSimilarity > 0) {
+    score += Math.round(15 * descriptionSimilarity);
+    if (descriptionSimilarity >= 0.5) evidence.push(`Similar description text to ${candidate.invoice_id}`);
+  }
+  return { score: Math.min(100, score), evidence };
+}
+
+async function enrichInvoiceIntelligence(
+  supabase: SupabaseClient,
+  invoiceId: string,
+  companyId: string,
+): Promise<{ summary: string }> {
+  try {
+    const { data: current, error: currentError } = await supabase
+      .from("invoices")
+      .select("invoice_id,vendor_id,subtotal,tax_amount,total_amount,date,due_date,po_number,notes")
+      .eq("invoice_id", invoiceId)
+      .eq("company_id", companyId)
+      .maybeSingle();
+    if (currentError) throw currentError;
+    if (!current) throw new Error("Analyzed invoice not found");
+
+    const { data: currentAnalysis, error: currentAnalysisError } = await supabase
+      .from("invoice_analysis")
+      .select("extracted_fields")
+      .eq("invoice_id", invoiceId)
+      .maybeSingle();
+    if (currentAnalysisError) throw currentAnalysisError;
+    const currentFields = (currentAnalysis?.extracted_fields ?? {}) as Record<string, unknown>;
+    const currentNumber = stringOrNull(currentFields.invoice_number);
+
+    const { data: history, error: historyError } = await supabase
+      .from("invoices")
+      .select("invoice_id,vendor_id,subtotal,tax_amount,total_amount,date,due_date,po_number,notes")
+      .eq("company_id", companyId)
+      .eq("vendor_id", current.vendor_id)
+      .neq("invoice_id", invoiceId);
+    if (historyError) throw historyError;
+    const candidates = (history ?? []) as DuplicateHistoryInvoice[];
+    const candidateIds = candidates.map((item) => item.invoice_id);
+    const { data: historyAnalyses, error: historyAnalysisError } = candidateIds.length
+      ? await supabase.from("invoice_analysis").select("invoice_id,extracted_fields,duplicate_score").in("invoice_id", candidateIds)
+      : { data: [], error: null };
+    if (historyAnalysisError) throw historyAnalysisError;
+    const analysisByInvoice = new Map((historyAnalyses ?? []).map((item) => [item.invoice_id, item]));
+    const duplicateMatches = candidates.map((candidate) => {
+      const candidateFields = (analysisByInvoice.get(candidate.invoice_id)?.extracted_fields ?? {}) as Record<string, unknown>;
+      const scored = scoreDuplicateInvoice(current as DuplicateHistoryInvoice, candidate as DuplicateHistoryInvoice, currentNumber, stringOrNull(candidateFields.invoice_number));
+      return { invoiceId: candidate.invoice_id, similarity: scored.score, evidence: scored.evidence };
+    }).filter((match) => match.similarity > 0).sort((a, b) => b.similarity - a.similarity);
+    const bestDuplicate = duplicateMatches[0] ?? null;
+
+    const { data: vendor, error: vendorError } = await supabase
+      .from("vendors")
+      .select("vendor_id,name,status,risk_profile,onboarded_date")
+      .eq("vendor_id", current.vendor_id)
+      .eq("company_id", companyId)
+      .maybeSingle();
+    if (vendorError) throw vendorError;
+    if (!vendor) throw new Error("Invoice vendor not found");
+    const vendorInvoices = [current as DuplicateHistoryInvoice, ...candidates];
+    const totalSpend = vendorInvoices.reduce((sum, item) => sum + Number(item.total_amount ?? 0), 0);
+    const averageSpend = vendorInvoices.length ? totalSpend / vendorInvoices.length : 0;
+    const ninetyDaysAgo = Date.now() - 90 * 86400000;
+    const recentInvoiceCount = vendorInvoices.filter((item) => new Date(item.date).getTime() >= ninetyDaysAgo).length;
+    const { data: payments, error: paymentsError } = await supabase
+      .from("payments")
+      .select("invoice_id,status,payment_date")
+      .eq("company_id", companyId)
+      .in("invoice_id", vendorInvoices.map((item) => item.invoice_id));
+    if (paymentsError) throw paymentsError;
+    const completedPayments = (payments ?? []).filter((payment) => payment.status === "Completed");
+    const onTimePayments = completedPayments.filter((payment) => {
+      const invoice = vendorInvoices.find((item) => item.invoice_id === payment.invoice_id);
+      return invoice && invoice.due_date && payment.payment_date && new Date(payment.payment_date).getTime() <= new Date(invoice.due_date).getTime();
+    }).length;
+    const onTimeRate = completedPayments.length ? onTimePayments / completedPayments.length : null;
+    const { data: bankChanges, error: bankError } = await supabase
+      .from("vendor_bank_changes")
+      .select("changed_at")
+      .eq("company_id", companyId)
+      .eq("vendor_id", current.vendor_id)
+      .gte("changed_at", new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10));
+    if (bankError) throw bankError;
+
+    let vendorScore = 0;
+    const vendorReasons: string[] = [];
+    if (vendor.status === "Blacklisted") { vendorScore += 60; vendorReasons.push("Vendor is blacklisted"); }
+    if (vendor.status === "Under Review") { vendorScore += 30; vendorReasons.push("Vendor is under review"); }
+    if (onTimeRate !== null && onTimeRate < 0.7) { vendorScore += 20; vendorReasons.push(`On-time payment rate is ${Math.round(onTimeRate * 100)}%`); }
+    if (bestDuplicate && bestDuplicate.similarity >= 70) { vendorScore += 20; vendorReasons.push("Prior invoice history contains a high-similarity duplicate"); }
+    if ((bankChanges ?? []).length > 0) { vendorScore += 25; vendorReasons.push("Vendor bank details changed within 30 days"); }
+    if (vendorInvoices.length <= 2 && averageSpend > 200000) { vendorScore += 15; vendorReasons.push("New vendor relationship with a large average invoice"); }
+    vendorScore = Math.min(100, vendorScore);
+    const computedRisk = vendorScore >= 60 ? "High" : vendorScore >= 30 ? "Medium" : "Low";
+    if (!vendorReasons.length) vendorReasons.push("No elevated risk indicators found in vendor history");
+    const vendorSnapshot = {
+      vendor_id: vendor.vendor_id,
+      vendor_name: vendor.name,
+      computed_risk: computedRisk,
+      score: vendorScore,
+      invoice_count: vendorInvoices.length,
+      total_spend: totalSpend,
+      average_invoice_amount: averageSpend,
+      recent_invoice_count_90d: recentInvoiceCount,
+      on_time_payment_rate: onTimeRate,
+      recent_bank_change: (bankChanges ?? []).length > 0,
+      reasons: vendorReasons,
+    };
+    const { error: analysisUpdateError } = await supabase.from("invoice_analysis").update({
+      duplicate_score: bestDuplicate?.similarity ?? 0,
+      duplicate_evidence: { best_match: bestDuplicate, matches: duplicateMatches.slice(0, 5) },
+      vendor_risk_snapshot: vendorSnapshot,
+    }).eq("invoice_id", invoiceId);
+    if (analysisUpdateError) throw analysisUpdateError;
+    return {
+      summary: `Duplicate score: ${bestDuplicate?.similarity ?? 0}%. Vendor risk: ${computedRisk} (${vendorScore}/100). ${bestDuplicate?.evidence[0] ?? vendorReasons[0]}`,
+    };
+  } catch (error) {
+    console.error("whatsapp-webhook: invoice intelligence failed", error instanceof Error ? error.message : error);
+    return { summary: "Duplicate and vendor intelligence is temporarily unavailable; the extracted invoice remains safely stored." };
+  }
+}
+
 // ---- Onboarding + OTP (Phase 4) -------------------------------------------
 
 interface OnboardingContext {
@@ -1106,9 +1289,12 @@ Deno.serve(async (req) => {
             ingestResult.mimeType,
             linkedUser.company_id,
           );
-          replyText = analysisResult.success
-            ? analysisResult.summary
-            : `Invoice ${ingestResult.invoiceId} received. ${analysisResult.summary}`;
+          if (analysisResult.success) {
+            const intelligenceResult = await enrichInvoiceIntelligence(supabase, ingestResult.invoiceId, linkedUser.company_id);
+            replyText = [analysisResult.summary, intelligenceResult.summary].join(NL);
+          } else {
+            replyText = `Invoice ${ingestResult.invoiceId} received. ${analysisResult.summary}`;
+          }
         } else {
           replyText = `Invoice ${ingestResult.invoiceId} received and stored safely.`;
         }

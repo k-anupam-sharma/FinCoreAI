@@ -665,14 +665,14 @@ Phase 7 now extracts invoice facts and validates them, but it does not compare t
 
 ### Implementation checklist (Phase 8)
 
-- [ ] Add deterministic duplicate scoring helpers with exact invoice-number, amount, date, PO, and description signals plus evidence.
-- [ ] Query same-company vendor history, payments, bank changes, prior analysis rows, and current vendor metadata through the Enter Cloud client.
-- [ ] Add computed vendor-risk scoring with explicit points and reasons for blacklist/review status, payment performance, duplicate history, recent bank changes, and new-vendor spend.
-- [ ] Update the existing `invoice_analysis` row without creating a duplicate analysis record.
-- [ ] Keep invoice status Pending and do not create approval/decision rows in Phase 8.
-- [ ] Send a second WhatsApp message with duplicate score, vendor risk, and top evidence after extraction.
-- [ ] Preserve existing invoices and duplicate history; use the new receipt table to prevent repeated Meta message processing.
-- [ ] Deploy the updated backend function and append the Phase 8 demo steps.
+- [x] Add deterministic duplicate scoring helpers with exact invoice-number, amount, date, PO, and description signals plus evidence.
+- [x] Query same-company vendor history, payments, bank changes, prior analysis rows, and current vendor metadata through the Enter Cloud client.
+- [x] Add computed vendor-risk scoring with explicit points and reasons for blacklist/review status, payment performance, duplicate history, recent bank changes, and new-vendor spend.
+- [x] Update the existing `invoice_analysis` row without creating a duplicate analysis record.
+- [x] Keep invoice status Pending and do not create approval/decision rows in Phase 8.
+- [x] Send a second WhatsApp message with duplicate score, vendor risk, and top evidence after extraction.
+- [x] Preserve existing invoices and duplicate history; use the new receipt table to prevent repeated Meta message processing.
+- [x] Deploy the updated backend function and append the Phase 8 demo steps.
 
 ### Verification checklist (Phase 8)
 

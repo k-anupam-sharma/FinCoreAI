@@ -217,3 +217,31 @@ Expect `status='Pending'`, `source_channel='whatsapp_bot'`, a private `file_stor
 - An unlinked number sending media receives onboarding guidance and does not create an invoice.
 - Meta download errors return a safe retry message; internal Graph/Storage/database details are logged server-side only.
 
+---
+
+# Demo script — Phase 8: Duplicate detection + vendor intelligence
+
+After a successful image extraction, FinCore now sends a second message with deterministic history-based intelligence.
+
+## 1. WhatsApp response
+
+Expect two final lines after the OCR interim message:
+
+- `Duplicate score: <0-100>%` with the strongest match evidence when available.
+- `Vendor risk: Low|Medium|High (<score>/100)` with the strongest computed reason.
+
+The invoice remains `Pending`; Phase 8 does not approve or reject it.
+
+## 2. Database checks
+
+```sql
+select invoice_id, duplicate_score, duplicate_evidence,
+       vendor_risk_snapshot
+  from invoice_analysis
+ where invoice_id = '<invoice id>';
+```
+
+Duplicate scoring compares the same-company, same-vendor history using invoice number, amount, date, purchase order, and description signals. Vendor risk uses vendor status, spend history, recent activity, completed payment timing, prior duplicate flags, and recent bank changes.
+
+The `whatsapp_message_receipts` table makes Meta message processing idempotent. If Meta retries the same inbound message ID, no second invoice or reply is created.
+
