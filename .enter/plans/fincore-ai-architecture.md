@@ -260,6 +260,8 @@ All are Supabase-style functions at `supabase/functions/<name>/index.ts`, servic
 
 All added via `supabase_add_secret` when each phase needs them — none hardcoded, none in client-side code.
 
+**Version control note:** this environment auto-commits every turn to its own managed history; I cannot run `git push`/`git remote` or mirror commits to an external GitHub repository (`k-anupam-sharma/FinCoreAI`). Secrets themselves never live in source regardless — they're stored server-side via `supabase_add_secret` and read with `Deno.env.get()`. As a defense-in-depth step, Phase 1 also hardens `.gitignore` (adding `.env`, `.env.*.local`, and key/credential file patterns) even though no secret is ever committed by this workflow.
+
 ---
 
 ## 11. External integrations required
@@ -319,6 +321,7 @@ Each milestone is implemented, verified, and explained before the next starts �
 
 ## Implementation checklist (Phase 1–2, next step after approval)
 
+- [ ] Harden `.gitignore` with `.env`, `.env.*.local`, and generic key/credential file patterns (defense-in-depth; no secret is ever committed by this workflow regardless).
 - [ ] Enable Enter Cloud (`supabase_enable`) if not already on.
 - [ ] Migration: create `companies`, `users`, `vendors`, `vendor_bank_changes`, `gl_accounts`, `invoices`, `invoice_items`, `payments`, `budgets`, `transactions`, `decisions` with text PKs matching CSV IDs; RLS enabled with default-deny (service-role only) policies.
 - [ ] Migration: create `auth_methods`, `whatsapp_accounts`, `otp_sessions`, `conversation_sessions`, `conversation_messages`, `auth_log` (uuid PKs except auth_log which keeps CSV `log_id`); RLS default-deny.
