@@ -388,27 +388,29 @@ The user confirmed they have real Meta WhatsApp Cloud API credentials ready. Per
 
 ## Implementation checklist (Phase 3)
 
-- [ ] Collect `WHATSAPP_ACCESS_TOKEN`, `WHATSAPP_PHONE_NUMBER_ID`, `WHATSAPP_VERIFY_TOKEN`, `WHATSAPP_APP_SECRET` via `supabase_add_secret`.
-- [ ] Create `supabase/functions/_shared/cors.ts` with the standard CORS headers and `OPTIONS` handling shape.
-- [ ] Create `supabase/functions/_shared/whatsapp.ts`: `verifyMetaSignature(rawBody, signatureHeader, appSecret)` (HMAC-SHA256, timing-safe compare) and `sendWhatsAppText(to, text)` (Graph API call using `WHATSAPP_ACCESS_TOKEN` / `WHATSAPP_PHONE_NUMBER_ID`).
-- [ ] Create `supabase/functions/whatsapp-webhook/index.ts`:
-  - [ ] GET: validate `hub.verify_token` against `WHATSAPP_VERIFY_TOKEN`; return `hub.challenge` on match, 403 otherwise.
-  - [ ] POST: reject (401/403) when the signature check fails, before any DB access.
-  - [ ] POST: on a valid signed request, upsert `conversation_sessions` by `wa_id`.
-  - [ ] POST: insert one `conversation_messages` row per inbound message (text/image/document/interactive).
-  - [ ] POST: reply with the static menu on hi/hello/menu/help, otherwise an echo/not-yet-implemented notice; image/document gets an acknowledgement only.
-  - [ ] POST: insert the corresponding outbound `conversation_messages` row and call `sendWhatsAppText()`.
-  - [ ] Never leak secrets or stack traces in any response body; log detail server-side only.
-- [ ] Update `supabase/config.toml` to set `verify_jwt = false` for `whatsapp-webhook` only.
-- [ ] Deploy via `supabase_deploy_edge_function` and confirm the platform reports `verify_jwt = false` for this function.
-- [ ] Write `docs/demo-script.md` with the curl commands used for verification below.
+- [x] Collect `WHATSAPP_ACCESS_TOKEN`, `WHATSAPP_PHONE_NUMBER_ID`, `WHATSAPP_VERIFY_TOKEN`, `WHATSAPP_APP_SECRET` via `supabase_add_secret`.
+- [x] Create `supabase/functions/_shared/cors.ts` with the standard CORS headers and `OPTIONS` handling shape (kept as documented reference; see note below on inlining).
+- [x] Create `supabase/functions/_shared/whatsapp.ts`: `verifyMetaSignature(rawBody, signatureHeader, appSecret)` (HMAC-SHA256, timing-safe compare) and `sendWhatsAppText(to, text)` (Graph API call using `WHATSAPP_ACCESS_TOKEN` / `WHATSAPP_PHONE_NUMBER_ID`).
+- [x] Create `supabase/functions/whatsapp-webhook/index.ts`:
+  - [x] GET: validate `hub.verify_token` against `WHATSAPP_VERIFY_TOKEN`; return `hub.challenge` on match, 403 otherwise.
+  - [x] POST: reject (401/403) when the signature check fails, before any DB access.
+  - [x] POST: on a valid signed request, upsert `conversation_sessions` by `wa_id`.
+  - [x] POST: insert one `conversation_messages` row per inbound message (text/image/document/interactive).
+  - [x] POST: reply with the static menu on hi/hello/menu/help, otherwise an echo/not-yet-implemented notice; image/document gets an acknowledgement only.
+  - [x] POST: insert the corresponding outbound `conversation_messages` row and call `sendWhatsAppText()`.
+  - [x] Never leak secrets or stack traces in any response body; log detail server-side only.
+- [x] Update `supabase/config.toml` to set `verify_jwt = false` for `whatsapp-webhook` only.
+- [x] Deploy via `supabase_deploy_edge_function` and confirm the platform reports `verify_jwt = false` for this function.
+- [x] Write `docs/demo-script.md` with the curl commands used for verification below.
+
+**Platform constraint discovered during implementation:** this project's Edge Function bundler packages only the single `index.ts` per function — cross-function relative imports to `_shared/*.ts` are not resolved at deploy time (`Module not found "file:///.../_shared/cors.ts"`). `supabase/functions/_shared/{cors,whatsapp}.ts` are kept as the documented reference implementation; `whatsapp-webhook/index.ts` inlines the same logic directly. Future functions that need these helpers (`invoice-analyze`, `alerts-scan`, `invoice-action`, etc.) will need to inline-copy from `_shared/` too — flagging this so it's a deliberate, visible choice each time rather than a silent drift risk.
 
 ## Verification checklist (Phase 3)
 
-- [ ] GET handshake with the correct `hub.verify_token` returns the `hub.challenge` value with HTTP 200.
-- [ ] GET handshake with an incorrect `hub.verify_token` returns a non-200 and does not echo the challenge.
-- [ ] POST with a valid HMAC-SHA256 signature (computed from the real `WHATSAPP_APP_SECRET`) results in exactly one new `conversation_sessions` row (first contact) and two `conversation_messages` rows (inbound + outbound), verified via `supabase_read_query`.
-- [ ] POST with an invalid/missing signature is rejected and writes zero rows (negative test).
-- [ ] Sending "Hi" from the user's real WhatsApp number to the connected test number produces a real reply on their phone within a few seconds, and the exchange is visible in `conversation_messages`.
-- [ ] Sending "menu" produces the 8-item main menu reply; sending arbitrary text produces the echo/not-yet-implemented reply; sending an image produces the acknowledgement-only reply.
-- [ ] `supabase_search_edge_function_logs` for `whatsapp-webhook` shows no unhandled errors across the above test messages.
+- [x] GET handshake with the correct `hub.verify_token` returns the `hub.challenge` value with HTTP 200. (Verified via curl: `CHALLENGE_ACCEPTED_123` / `HTTP_STATUS:200`.)
+- [x] GET handshake with an incorrect `hub.verify_token` returns a non-200 and does not echo the challenge. (Verified via curl: `Forbidden` / `HTTP_STATUS:403`.)
+- [x] POST with a valid HMAC-SHA256 signature (computed from the real `WHATSAPP_APP_SECRET`) results in exactly one new `conversation_sessions` row (first contact) and two `conversation_messages` rows (inbound + outbound), verified via `supabase_read_query`. (Confirmed: one session for test wa_id `911234567890`, inbound "Hi" + outbound main-menu text.)
+- [x] POST with an invalid/missing signature is rejected and writes zero rows (negative test). (Confirmed: `401 Invalid signature`, no additional rows beyond the valid-signature test.)
+- [x] Sending "Hi" from the user's real WhatsApp number to the connected test number produces a real reply on their phone within a few seconds, and the exchange is visible in `conversation_messages`. (User confirmed live: received the menu reply.)
+- [x] Sending "menu" produces the 8-item main menu reply; sending arbitrary text produces the echo/not-yet-implemented reply; sending an image produces the acknowledgement-only reply. (Logic verified in code and via the curl test; live-confirmed for the menu case.)
+- [ ] `supabase_search_edge_function_logs` for `whatsapp-webhook` shows no unhandled errors across the above test messages. **Blocked:** the log search tool itself returned a platform-side `HTTP 500` on every query attempted; functional correctness was instead confirmed directly via database row verification above. Retry log inspection in a later phase if the tool recovers.
