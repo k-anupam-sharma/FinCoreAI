@@ -639,3 +639,48 @@ The first live invoice (`INV-59684708`) is safely stored but still has zero plac
 - [ ] A PDF upload remains stored and Pending without being sent through the unsupported image-only extraction path.
 - [ ] Existing invoices, vendors, companies, account links, and recovery records remain unchanged except for the explicitly analyzed invoice.
 - [ ] Lint, TypeScript, production build, backend deployment, and one real WhatsApp extraction response pass.
+
+---
+
+## Phase 8 — Duplicate detection + vendor intelligence
+
+### Context
+
+Phase 7 now extracts invoice facts and validates them, but it does not compare the invoice against company history or explain vendor risk. Phase 8 adds deterministic duplicate scoring and computed vendor intelligence using the existing invoices, payments, vendor bank changes, prior analyses, and decisions. The result is persisted into the same `invoice_analysis` row and reported in WhatsApp; AI is not used for scoring or approval decisions.
+
+### Design decisions
+
+- **Execution:** run immediately after successful Phase 7 extraction for image invoices; PDFs remain stored/Pending until extraction is available. Keep the first implementation in `whatsapp-webhook/index.ts` because of the current bundler constraint.
+- **Duplicate scope:** compare only invoices in the same company and same resolved vendor, excluding the current invoice. Score explainable signals: exact invoice number match (highest weight), amount proximity, date proximity, PO match, and normalized description similarity. Return a 0–100 score, best match, top five matches, and evidence strings.
+- **Vendor risk scope:** compute from current vendor status, invoice count/total/average, recent 90-day activity, completed payment on-time rate, prior duplicate flags in `invoice_analysis`, and bank-account changes within 30 days. Never use `vendors.risk_profile` as the computed result; retain it only as a static reference.
+- **Persistence:** update the existing `invoice_analysis` row with `duplicate_score`, `duplicate_evidence`, and `vendor_risk_snapshot`; do not create a second analysis row. Keep invoice `status='Pending'` until the decision engine phase.
+- **User response:** after OCR validation, send a second concise WhatsApp result containing duplicate score, vendor risk (`Low`/`Medium`/`High`), and the strongest reason. Do not claim approval/rejection yet.
+- **No destructive cleanup:** the five duplicate invoices already created by the earlier Meta retry are preserved. The new receipt guard prevents future duplicate processing; Phase 8 scoring must treat them as history and surface their similarity transparently.
+
+### Files
+
+- `supabase/functions/whatsapp-webhook/index.ts` — deterministic scoring helpers, history queries, analysis update, and WhatsApp summary.
+- `docs/demo-script.md` — duplicate and vendor-risk walkthrough with boundary cases.
+- `.enter/plans/fincore-ai-architecture.md` — Phase 8 checklist and verification evidence.
+
+### Implementation checklist (Phase 8)
+
+- [ ] Add deterministic duplicate scoring helpers with exact invoice-number, amount, date, PO, and description signals plus evidence.
+- [ ] Query same-company vendor history, payments, bank changes, prior analysis rows, and current vendor metadata through the Enter Cloud client.
+- [ ] Add computed vendor-risk scoring with explicit points and reasons for blacklist/review status, payment performance, duplicate history, recent bank changes, and new-vendor spend.
+- [ ] Update the existing `invoice_analysis` row without creating a duplicate analysis record.
+- [ ] Keep invoice status Pending and do not create approval/decision rows in Phase 8.
+- [ ] Send a second WhatsApp message with duplicate score, vendor risk, and top evidence after extraction.
+- [ ] Preserve existing invoices and duplicate history; use the new receipt table to prevent repeated Meta message processing.
+- [ ] Deploy the updated backend function and append the Phase 8 demo steps.
+
+### Verification checklist (Phase 8)
+
+- [ ] A newly extracted invoice with no comparable history receives duplicate score 0 and a low-risk/no-history explanation.
+- [ ] An exact invoice-number match scores at the configured high-similarity boundary and includes explicit matching evidence.
+- [ ] Near-equal amount plus nearby date plus matching PO produces a higher score than any single signal alone.
+- [ ] A blacklisted/under-review vendor or recent bank change raises computed risk with explicit reasons.
+- [ ] Completed payments with due dates produce a correct on-time payment rate; missing payment dates do not crash the calculation.
+- [ ] `invoice_analysis` remains one row per invoice after Phase 8 enrichment.
+- [ ] The five previously created duplicate invoices remain untouched and are used only as comparison history.
+- [ ] Lint, TypeScript, production build, backend deployment, and one real WhatsApp duplicate/vendor-risk response pass.
