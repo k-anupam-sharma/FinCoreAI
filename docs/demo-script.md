@@ -181,3 +181,39 @@ Expect the new number to be `active`, the prior active number to be `unlinked`, 
 
 Phase 5 was live-verified on 2026-09-18: the existing Phase 4 test account received an OTP by email, accepted the code from WhatsApp, reused its unique existing phone-number row safely, and received the `Welcome back` reply plus the main menu.
 
+---
+
+# Demo script — Phase 6: WhatsApp invoice upload + Enter Cloud Storage
+
+Phase 6 accepts invoice media from an active WhatsApp account only. OCR and financial extraction are intentionally deferred to Phase 7.
+
+## 1. Live WhatsApp upload
+
+1. From a WhatsApp number with an active FinCore account, send a PDF, JPG, or PNG invoice to the FinCore business number.
+2. Keep the file at or below 10 MB.
+3. Expect a reply containing `Invoice INV-... received and queued for analysis.`
+4. The uploaded original is stored privately under `invoices/{company_id}/{invoice_id}.{ext}` in the `fincore-invoices` bucket.
+
+## 2. Database checks
+
+```sql
+select invoice_id, company_id, vendor_id, status, source_channel,
+       file_storage_path, subtotal, tax_amount, total_amount, submitted_by
+  from invoices
+ where source_channel = 'whatsapp_bot'
+ order by submitted_at desc;
+
+select vendor_id, company_id, name
+  from vendors
+ where name = 'Pending Vendor';
+```
+
+Expect `status='Pending'`, `source_channel='whatsapp_bot'`, a private `file_storage_path`, zero financial totals pending extraction, and one reusable company-scoped `Pending Vendor`.
+
+## 3. Rejection cases
+
+- A file over 10 MB is rejected without an invoice row or stored object.
+- A non-PDF/JPG/PNG file is rejected without an invoice row or stored object.
+- An unlinked number sending media receives onboarding guidance and does not create an invoice.
+- Meta download errors return a safe retry message; internal Graph/Storage/database details are logged server-side only.
+

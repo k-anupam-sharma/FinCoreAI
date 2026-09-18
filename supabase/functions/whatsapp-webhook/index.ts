@@ -110,6 +110,20 @@ interface WhatsAppInboundMessage {
   interactive?: { type: string; list_reply?: { id: string; title: string }; button_reply?: { id: string; title: string } };
 }
 
+interface InboundSummary {
+  messageType: "text" | "image" | "document" | "interactive";
+  content: string;
+  mediaId?: string;
+  mimeType?: string;
+  filename?: string;
+}
+
+interface InvoiceIngestResult {
+  success: boolean;
+  invoiceId?: string;
+  errorMessage: string;
+}
+
 interface WhatsAppWebhookPayload {
   entry?: Array<{
     changes?: Array<{
@@ -133,15 +147,27 @@ function extractInboundMessages(payload: WhatsAppWebhookPayload): WhatsAppInboun
   return messages;
 }
 
-function summarizeInboundMessage(message: WhatsAppInboundMessage): { messageType: "text" | "image" | "document" | "interactive"; content: string } {
+function summarizeInboundMessage(message: WhatsAppInboundMessage): InboundSummary {
   if (message.type === "text" && message.text) {
     return { messageType: "text", content: message.text.body };
   }
   if (message.type === "image") {
-    return { messageType: "image", content: message.image?.caption ?? "[image]" };
+    return {
+      messageType: "image",
+      content: message.image?.caption ?? "[image]",
+      mediaId: message.image?.id,
+      mimeType: message.image?.mime_type,
+      filename: "invoice-image",
+    };
   }
   if (message.type === "document") {
-    return { messageType: "document", content: message.document?.filename ?? message.document?.caption ?? "[document]" };
+    return {
+      messageType: "document",
+      content: message.document?.filename ?? message.document?.caption ?? "[document]",
+      mediaId: message.document?.id,
+      mimeType: message.document?.mime_type,
+      filename: message.document?.filename,
+    };
   }
   if (message.type === "interactive" && message.interactive) {
     const reply = message.interactive.list_reply ?? message.interactive.button_reply;
@@ -183,6 +209,126 @@ function buildReply(messageType: string, content: string): string {
     return "Got your file - invoice processing is coming in a later phase of this build. Type 'menu' to see what's available now.";
   }
   return ["Received: " + JSON.stringify(content), "", "Full financial analysis is coming in later phases. Type \"menu\" to see available options."].join(NL);
+}
+
+const INVOICE_BUCKET = "fincore-invoices";
+const MAX_INVOICE_BYTES = 10 * 1024 * 1024;
+const ALLOWED_INVOICE_TYPES = new Set(["application/pdf", "image/jpeg", "image/png"]);
+
+function invoiceExtension(mimeType: string, filename?: string): string {
+  const filenameExtension = filename?.split(".").pop()?.toLowerCase().replace(/[^a-z0-9]/g, "");
+  if (filenameExtension === "pdf" || filenameExtension === "jpg" || filenameExtension === "jpeg" || filenameExtension === "png") {
+    return filenameExtension === "jpeg" ? "jpg" : filenameExtension;
+  }
+  return mimeType === "application/pdf" ? "pdf" : mimeType === "image/png" ? "png" : "jpg";
+}
+
+async function ensureInvoiceBucket(supabase: SupabaseClient): Promise<void> {
+  const { data: buckets, error: listError } = await supabase.storage.listBuckets();
+  if (listError) throw listError;
+  if (buckets?.some((bucket) => bucket.name === INVOICE_BUCKET)) return;
+  const { error: createError } = await supabase.storage.createBucket(INVOICE_BUCKET, { public: false });
+  if (createError && !/already exists|duplicate/i.test(createError.message)) throw createError;
+}
+
+async function fetchWhatsAppMedia(mediaId: string): Promise<{ bytes: Uint8Array; mimeType: string }> {
+  const metadataResponse = await fetch(`https://graph.facebook.com/${GRAPH_API_VERSION}/${mediaId}`, {
+    headers: { Authorization: `Bearer ${ACCESS_TOKEN}` },
+  });
+  const metadata = await metadataResponse.json();
+  if (!metadataResponse.ok || !metadata?.url) {
+    throw new Error(metadata?.error?.message ?? `WhatsApp media metadata request failed (${metadataResponse.status})`);
+  }
+
+  const mediaResponse = await fetch(metadata.url, { headers: { Authorization: `Bearer ${ACCESS_TOKEN}` } });
+  if (!mediaResponse.ok) throw new Error(`WhatsApp media download failed (${mediaResponse.status})`);
+  const contentLength = Number(mediaResponse.headers.get("content-length") ?? "0");
+  if (contentLength > MAX_INVOICE_BYTES) throw new Error("Invoice file exceeds the 10 MB limit");
+  const bytes = new Uint8Array(await mediaResponse.arrayBuffer());
+  if (bytes.byteLength > MAX_INVOICE_BYTES) throw new Error("Invoice file exceeds the 10 MB limit");
+  return { bytes, mimeType: metadata.mime_type ?? mediaResponse.headers.get("content-type")?.split(";")[0] ?? "" };
+}
+
+async function ingestWhatsAppInvoice(
+  supabase: SupabaseClient,
+  summary: InboundSummary,
+  companyId: string,
+  userId: string,
+): Promise<InvoiceIngestResult> {
+  if (!summary.mediaId) return { success: false, errorMessage: "I couldn't read that file. Please send the invoice again as a PDF, JPG, or PNG." };
+  if (summary.mimeType && !ALLOWED_INVOICE_TYPES.has(summary.mimeType)) {
+    return { success: false, errorMessage: "Please send an invoice as a PDF, JPG, or PNG file (maximum 10 MB)." };
+  }
+
+  let media: { bytes: Uint8Array; mimeType: string };
+  try {
+    media = await fetchWhatsAppMedia(summary.mediaId);
+  } catch (error) {
+    console.error("whatsapp-webhook: invoice media fetch failed", error instanceof Error ? error.message : error);
+    return { success: false, errorMessage: "I couldn't download that invoice. Please send it again." };
+  }
+  if (!ALLOWED_INVOICE_TYPES.has(media.mimeType)) {
+    return { success: false, errorMessage: "Please send an invoice as a PDF, JPG, or PNG file (maximum 10 MB)." };
+  }
+
+  const invoiceId = newId("INV");
+  const extension = invoiceExtension(media.mimeType, summary.filename);
+  const storagePath = `invoices/${companyId}/${invoiceId}.${extension}`;
+  try {
+    await ensureInvoiceBucket(supabase);
+
+    const { data: pendingVendor, error: vendorLookupError } = await supabase
+      .from("vendors")
+      .select("vendor_id")
+      .eq("company_id", companyId)
+      .eq("name", "Pending Vendor")
+      .maybeSingle();
+    if (vendorLookupError) throw vendorLookupError;
+
+    let vendorId = pendingVendor?.vendor_id;
+    if (!vendorId) {
+      vendorId = `VEN-PENDING-${companyId.replace(/[^A-Za-z0-9]/g, "").slice(-8)}`;
+      const { error: vendorInsertError } = await supabase.from("vendors").insert({
+        vendor_id: vendorId,
+        company_id: companyId,
+        name: "Pending Vendor",
+        status: "Active",
+        risk_profile: "Low",
+      });
+      if (vendorInsertError && !/duplicate|unique/i.test(vendorInsertError.message)) throw vendorInsertError;
+    }
+
+    const { error: uploadError } = await supabase.storage.from(INVOICE_BUCKET).upload(storagePath, media.bytes, {
+      contentType: media.mimeType,
+      upsert: false,
+    });
+    if (uploadError) throw uploadError;
+
+    const { error: invoiceError } = await supabase.from("invoices").insert({
+      invoice_id: invoiceId,
+      company_id: companyId,
+      vendor_id: vendorId,
+      date: new Date().toISOString().slice(0, 10),
+      subtotal: 0,
+      tax_amount: 0,
+      total_amount: 0,
+      currency: "INR",
+      status: "Pending",
+      source_channel: "whatsapp_bot",
+      submitted_by: userId,
+      file_storage_path: storagePath,
+      notes: "Awaiting Phase 7 extraction",
+      submitted_at: new Date().toISOString(),
+    });
+    if (invoiceError) {
+      await supabase.storage.from(INVOICE_BUCKET).remove([storagePath]);
+      throw invoiceError;
+    }
+    return { success: true, invoiceId, errorMessage: "" };
+  } catch (error) {
+    console.error("whatsapp-webhook: invoice ingest failed", error instanceof Error ? error.message : error);
+    return { success: false, errorMessage: "I couldn't save that invoice. Please try sending it again." };
+  }
 }
 
 // ---- Onboarding + OTP (Phase 4) -------------------------------------------
@@ -672,7 +818,8 @@ Deno.serve(async (req) => {
   for (const message of inboundMessages) {
     try {
       const waId = message.from;
-      const { messageType, content } = summarizeInboundMessage(message);
+      const summary = summarizeInboundMessage(message);
+      const { messageType, content } = summary;
 
       // Bootstrap (or reuse) this contact's conversation session.
       const { data: existingSession, error: fetchError } = await supabase
@@ -725,9 +872,24 @@ Deno.serve(async (req) => {
         .maybeSingle();
       if (linkedAccountError) throw linkedAccountError;
 
-      const replyText = linkedAccount
-        ? buildReply(messageType, content)
-        : await handleOnboardingMessage(supabase, sessionId, sessionState, sessionContext, waId, messageType, content);
+      let replyText: string;
+      if (!linkedAccount) {
+        replyText = await handleOnboardingMessage(supabase, sessionId, sessionState, sessionContext, waId, messageType, content);
+      } else if ((messageType === "image" || messageType === "document") && linkedAccount.user_id) {
+        const { data: linkedUser, error: linkedUserError } = await supabase
+          .from("users")
+          .select("company_id")
+          .eq("user_id", linkedAccount.user_id)
+          .maybeSingle();
+        if (linkedUserError) throw linkedUserError;
+        if (!linkedUser) throw new Error("Linked WhatsApp account has no user record");
+        const ingestResult = await ingestWhatsAppInvoice(supabase, summary, linkedUser.company_id, linkedAccount.user_id);
+        replyText = ingestResult.success
+          ? `Invoice ${ingestResult.invoiceId} received and queued for analysis. Extraction and risk analysis will follow in the next phase.`
+          : ingestResult.errorMessage;
+      } else {
+        replyText = buildReply(messageType, content);
+      }
 
       const { error: outboundInsertError } = await supabase.from("conversation_messages").insert({
         session_id: sessionId,

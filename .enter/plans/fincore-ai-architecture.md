@@ -568,16 +568,16 @@ Onboarded users currently receive only a placeholder when they send an image or 
 
 ### Implementation checklist (Phase 6)
 
-- [ ] Inspect current Storage bucket/policy state before provisioning `fincore-invoices`; preserve any existing buckets and rows.
-- [ ] Extend the inbound WhatsApp types and extraction path to retain media ID, MIME type, filename, and caption for image/document messages.
-- [ ] Add `ingestWhatsAppInvoice` with Meta media metadata fetch, authenticated binary download, allowed-type validation, and 10 MB byte-limit validation.
-- [ ] Provision/use private `fincore-invoices` Storage and upload to `invoices/{company_id}/{invoice_id}.{ext}` without public URLs.
-- [ ] Reuse or create exactly one company-scoped `Pending Vendor` row (`VEN-PENDING-<company suffix>`) for invoices whose vendor is not yet extracted; do not create fabricated vendor financial data.
-- [ ] Insert a Pending `invoices` row with `source_channel='whatsapp_bot'`, `file_storage_path`, company/user ownership, and only schema-valid placeholder fields.
-- [ ] Delete the uploaded object when a later database insert fails; never leave an orphaned object from a failed ingest.
-- [ ] Route active-sender images/documents into ingest and leave onboarding media behavior unchanged for unidentified senders.
-- [ ] Return user-safe success/rejection messages and keep Meta/Storage/database error details server-side only.
-- [ ] Deploy the updated backend function and append the Phase 6 demo steps.
+- [x] Inspect current Storage bucket/policy state before provisioning `fincore-invoices`; preserve any existing buckets and rows (bucket was absent; creation is lazy and private on first valid upload).
+- [x] Extend the inbound WhatsApp types and extraction path to retain media ID, MIME type, filename, and caption for image/document messages.
+- [x] Add `ingestWhatsAppInvoice` with Meta media metadata fetch, authenticated binary download, allowed-type validation, and 10 MB byte-limit validation.
+- [x] Provision/use private `fincore-invoices` Storage and upload to `invoices/{company_id}/{invoice_id}.{ext}` without public URLs.
+- [x] Reuse or create exactly one company-scoped `Pending Vendor` row (`VEN-PENDING-<company suffix>`) for invoices whose vendor is not yet extracted; do not create fabricated vendor financial data.
+- [x] Insert a Pending `invoices` row with `source_channel='whatsapp_bot'`, `file_storage_path`, company/user ownership, and only schema-valid placeholder fields.
+- [x] Delete the uploaded object when a later database insert fails; never leave an orphaned object from a failed ingest.
+- [x] Route active-sender images/documents into ingest and leave onboarding media behavior unchanged for unidentified senders.
+- [x] Return user-safe success/rejection messages and keep Meta/Storage/database error details server-side only.
+- [x] Deploy the updated backend function and append the Phase 6 demo steps.
 
 ### Verification checklist (Phase 6)
 
