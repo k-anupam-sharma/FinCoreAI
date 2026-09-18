@@ -232,7 +232,7 @@ const GREETING_PATTERN = /^(hi|hello|hey|menu|help)$/i;
 
 function buildReply(messageType: string, content: string): string {
   if (messageType === "text" && GREETING_PATTERN.test(content.trim())) {
-    return MENU_TEXT;
+    return ["Hi! I'm FinCore AI, your financial intelligence assistant.", "", MENU_TEXT].join(NL);
   }
   if (messageType === "image" || messageType === "document") {
     return "Got your file - invoice processing is coming in a later phase of this build. Type 'menu' to see what's available now.";
