@@ -1159,7 +1159,20 @@ async function answerFinancialQuestion(supabase: SupabaseClient, companyId: stri
   const rows = invoices ?? [];
   let facts = "";
 
-  if (/(how many datasets|number of datasets|datasets.*present)/.test(lower)) {
+  if (/(how many users|number of users|users.*have)/.test(lower) || /(highest transaction|largest transaction|biggest transaction|max transaction)/.test(lower)) {
+    const results: string[] = [];
+    if (/(how many users|number of users|users.*have)/.test(lower)) {
+      const { count, error } = await supabase.from("users").select("user_id", { count: "exact", head: true }).eq("company_id", companyId);
+      if (error) throw error;
+      results.push(`Your company has ${count ?? 0} users in the FinCore Database.`);
+    }
+    if (/(highest transaction|largest transaction|biggest transaction|max transaction)/.test(lower)) {
+      const { data: highest, error } = await supabase.from("transactions").select("transaction_id,amount,type,category,date").eq("company_id", companyId).order("amount", { ascending: false }).limit(1);
+      if (error) throw error;
+      results.push(highest?.[0] ? `Highest transaction: ${highest[0].transaction_id}, INR ${Number(highest[0].amount).toFixed(2)}, ${highest[0].type}, ${highest[0].category}, dated ${highest[0].date}.` : "No transactions were found for your company.");
+    }
+    facts = results.join(NL);
+  } else if (/(how many datasets|number of datasets|datasets.*present)/.test(lower)) {
     const datasetNames = ["companies", "users", "vendors", "invoices", "payments", "budgets", "transactions", "decisions", "invoice_analysis", "risk_alerts", "forecast_records"];
     const counts = await Promise.all(datasetNames.map(async (table) => {
       if (table === "invoice_analysis") {
