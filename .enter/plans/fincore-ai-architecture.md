@@ -992,3 +992,31 @@ The current workflow parser recognizes exact forms such as `alerts` and `review 
 - [ ] Malformed/unsupported model output falls back safely without a database mutation.
 - [ ] AI timeout/credit failure leaves deterministic exact commands and existing Q&A behavior working.
 - [ ] Lint, TypeScript, production build, backend deployment, and real WhatsApp natural-language tests pass.
+
+---
+
+## Numeric menu routing hardening
+
+### Context
+
+The main menu currently displays numeric options, but a bare number such as `1` falls through to the natural-language fallback because the classifier has no required context. This change makes every numeric option invoke a real controlled handler while preserving the natural-language agent for free-form requests.
+
+### Design
+
+- `1` → invoice upload guidance: ask the user to send a PDF/JPG/PNG invoice.
+- `2` → financial overview Q&A facts.
+- `3` → top-vendor intelligence.
+- `4` → budget status.
+- `5` → 30-day forecast.
+- `6` → risk alerts.
+- `7` → ask a natural-language finance question.
+- `8` → account/help guidance.
+- Numeric routing runs before the AI classifier; the resulting handlers remain company-scoped and role-authorized.
+
+### Checklist
+
+- [ ] Add numeric menu dispatcher for active users.
+- [ ] Route options 2–6 through the existing controlled handlers.
+- [ ] Return upload guidance for option 1 and Q&A guidance for option 7.
+- [ ] Preserve option 8 help and `menu` behavior.
+- [ ] Deploy and verify all eight numbers through WhatsApp.
