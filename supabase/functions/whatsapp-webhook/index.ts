@@ -1104,6 +1104,56 @@ async function handleWorkflowCommand(supabase: SupabaseClient, userId: string, c
   return `${action.toUpperCase()} recorded for ${invoiceId}. The invoice remains ${invoice.status} until the payment/status workflow is completed.`;
 }
 
+async function handleForecastCommand(supabase: SupabaseClient, companyId: string, question: string): Promise<string | null> {
+  const match = question.toLowerCase().match(/\b(30|60|90)\s*(?:day|days)?\b/);
+  if (!/(forecast|cash flow|cash position)/i.test(question) && !match) return null;
+  const horizon = (Number(match?.[1] ?? 30) as 30 | 60 | 90);
+  const { data: transactions, error: transactionError } = await supabase
+    .from("transactions")
+    .select("date,type,category,amount")
+    .eq("company_id", companyId)
+    .order("date", { ascending: true })
+    .limit(2000);
+  if (transactionError) throw transactionError;
+  const referenceDate = Date.now();
+  const lookbackStart = referenceDate - 90 * 86400000;
+  const history = (transactions ?? []).filter((transaction) => {
+    const date = new Date(transaction.date).getTime();
+    return Number.isFinite(date) && date >= lookbackStart && date <= referenceDate;
+  });
+  const inflow = history.filter((transaction) => transaction.type === "inflow");
+  const outflow = history.filter((transaction) => transaction.type === "outflow");
+  const totalInflow = inflow.reduce((sum, transaction) => sum + Number(transaction.amount), 0);
+  const totalOutflow = outflow.reduce((sum, transaction) => sum + Number(transaction.amount), 0);
+  const projectedInflow = (totalInflow / 90) * horizon;
+  const projectedOutflow = (totalOutflow / 90) * horizon;
+  const cumulativePosition = (transactions ?? []).filter((transaction) => new Date(transaction.date).getTime() <= referenceDate).reduce((sum, transaction) => sum + (transaction.type === "inflow" ? Number(transaction.amount) : -Number(transaction.amount)), 0);
+  const topCategories = (type: string) => {
+    const totals = new Map<string, number>();
+    for (const transaction of history.filter((item) => item.type === type)) totals.set(transaction.category, (totals.get(transaction.category) ?? 0) + Number(transaction.amount));
+    return [...totals.entries()].sort((a, b) => b[1] - a[1]).slice(0, 3).map(([category, amount]) => `${category}: INR ${amount.toFixed(2)}`);
+  };
+  const disclaimer = "Estimate based on recent historical patterns in your transaction data — not a guaranteed forecast.";
+  const forecast = {
+    horizon_days: horizon,
+    projected_inflow: projectedInflow,
+    projected_outflow: projectedOutflow,
+    projected_net: projectedInflow - projectedOutflow,
+    projected_cash_position: cumulativePosition + projectedInflow - projectedOutflow,
+    top_contributors: { inflow: topCategories("inflow"), outflow: topCategories("outflow") },
+    disclaimer,
+  };
+  const { data: existing, error: existingError } = await supabase.from("forecast_records").select("id").eq("company_id", companyId).eq("horizon_days", horizon).maybeSingle();
+  if (existingError) throw existingError;
+  const forecastPayload = { ...forecast, company_id: companyId, generated_at: new Date().toISOString() };
+  const { error: persistError } = existing
+    ? await supabase.from("forecast_records").update(forecastPayload).eq("id", existing.id)
+    : await supabase.from("forecast_records").insert(forecastPayload);
+  if (persistError) throw persistError;
+  if (!history.length) return `There is not enough transaction history for a reliable ${horizon}-day forecast. No values were invented. ${disclaimer}`;
+  return [`${horizon}-day cash-flow estimate`, `Projected inflow: INR ${projectedInflow.toFixed(2)}`, `Projected outflow: INR ${projectedOutflow.toFixed(2)}`, `Projected net: INR ${(projectedInflow - projectedOutflow).toFixed(2)}`, `Projected cash position: INR ${forecast.projected_cash_position.toFixed(2)}`, `Top outflow categories: ${topCategories("outflow").join(", ") || "none"}`, "", disclaimer].join(NL);
+}
+
 // ---- Onboarding + OTP (Phase 4) -------------------------------------------
 
 interface OnboardingContext {
@@ -1708,7 +1758,8 @@ Deno.serve(async (req) => {
           const { data: linkedUser, error: linkedUserError } = await supabase.from("users").select("company_id,role").eq("user_id", linkedAccount.user_id).maybeSingle();
           if (linkedUserError) throw linkedUserError;
           if (!linkedUser) throw new Error("Linked WhatsApp account has no user record");
-          const workflowReply = await handleWorkflowCommand(supabase, linkedAccount.user_id, linkedUser.company_id, linkedUser.role, content);
+          const forecastReply = await handleForecastCommand(supabase, linkedUser.company_id, content);
+          const workflowReply = forecastReply ?? await handleWorkflowCommand(supabase, linkedAccount.user_id, linkedUser.company_id, linkedUser.role, content);
           replyText = workflowReply ?? await answerFinancialQuestion(supabase, linkedUser.company_id, content);
         } else {
           replyText = buildReply(messageType, content);

@@ -888,12 +888,12 @@ Phase 13 turns the imported and live transaction history into persisted 30/60/90
 
 ### Implementation checklist (Phase 13)
 
-- [ ] Add deterministic 30/60/90-day forecast calculation ported from `forecast.ts`.
-- [ ] Add active-user forecast command routing and horizon parsing.
-- [ ] Query company-scoped transactions only and bound the input set.
-- [ ] Upsert `forecast_records` with contributors and disclaimer.
-- [ ] Add empty-history handling without invented values.
-- [ ] Deploy and append the Phase 13 demo walkthrough.
+- [x] Add deterministic 30/60/90-day forecast calculation ported from `forecast.ts`.
+- [x] Add active-user forecast command routing and horizon parsing.
+- [x] Query company-scoped transactions only and bound the input set.
+- [x] Upsert `forecast_records` with contributors and disclaimer.
+- [x] Add empty-history handling without invented values.
+- [x] Deploy and append the Phase 13 demo walkthrough.
 
 ### Verification checklist (Phase 13)
 

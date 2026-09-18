@@ -314,3 +314,18 @@ resolve alert <alert-id>
 
 `alerts` creates/reuses company-scoped open `risk_alerts` rows and lists the highest-severity items. Workflow actions require `admin`, `finance_manager`, or `department_head`; viewers and auditors are denied. Every accepted action is written to `invoice_actions`, while the invoice remains in its existing schema-valid status until a later payment/status workflow.
 
+---
+
+# Demo script — Phase 13: Cash-flow forecasting
+
+From an active WhatsApp number, send:
+
+```text
+forecast
+30 day forecast
+60 day forecast
+90 day cash flow forecast
+```
+
+Each request reads only the linked company's `transactions`, persists/updates one `forecast_records` row for that horizon, and returns projected inflow, outflow, net, cash position, top outflow categories, and the disclaimer: `Estimate based on recent historical patterns in your transaction data — not a guaranteed forecast.`
+
