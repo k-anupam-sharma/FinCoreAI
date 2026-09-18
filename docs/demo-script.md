@@ -279,3 +279,21 @@ select decision_id, invoice_id, recommendation, reasoning,
 
 The invoice remains `Pending`; the decision is an auditable recommendation only.
 
+---
+
+# Demo script — Phase 11: Natural-language financial Q&A
+
+From the active WhatsApp number, send questions such as:
+
+```text
+How much did we spend this month?
+Which vendor has the highest spend?
+Show pending invoices
+Are there any risky invoices?
+How much budget is left?
+Can we afford an INR 300000 invoice?
+What is our cash flow?
+```
+
+FinCore responds from company-scoped database facts and uses Qwen only to explain those facts. Unknown questions return the supported-topic list. Q&A is read-only and does not change invoices, budgets, vendors, or decisions.
+

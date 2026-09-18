@@ -800,13 +800,13 @@ The current active-user text path still returns a generic echo. Phase 11 lets an
 
 ### Implementation checklist (Phase 11)
 
-- [ ] Add explicit Q&A intent classification for overview, spend, vendors, pending invoices, risks, budgets, affordability, and forecast questions.
-- [ ] Add company-scoped read-only query handlers with bounded output and no arbitrary SQL.
-- [ ] Add a deterministic fallback response for unknown intents and empty datasets.
-- [ ] Add Qwen fact-grounded explanation using the existing AI secret and project attribution headers.
-- [ ] Route active-user text through Q&A before the generic echo fallback, while preserving `menu` behavior.
-- [ ] Keep Q&A read-only and preserve forecast disclaimers.
-- [ ] Deploy and append the Phase 11 demo walkthrough.
+- [x] Add explicit Q&A intent classification for overview, spend, vendors, pending invoices, risks, budgets, affordability, and forecast questions.
+- [x] Add company-scoped read-only query handlers with bounded output and no arbitrary SQL.
+- [x] Add a deterministic fallback response for unknown intents and empty datasets.
+- [x] Add Qwen fact-grounded explanation using the existing AI secret and project attribution headers.
+- [x] Route active-user text through Q&A before the generic echo fallback, while preserving `menu` behavior.
+- [x] Keep Q&A read-only and preserve forecast disclaimers.
+- [x] Deploy and append the Phase 11 demo walkthrough.
 
 ### Verification checklist (Phase 11)
 

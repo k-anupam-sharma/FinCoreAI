@@ -933,6 +933,97 @@ async function createInvoiceDecision(
   }
 }
 
+function extractQuestionAmount(question: string): number | null {
+  const match = question.replace(/,/g, "").match(/(?:₹|rs\.?|inr\s*)?(\d+(?:\.\d+)?)/i);
+  return match ? Number(match[1]) : null;
+}
+
+async function explainFinancialFacts(question: string, facts: string): Promise<string> {
+  if (!AI_API_TOKEN) return facts;
+  try {
+    const response = await fetch(`${AI_API_BASE}/code/api/v1/ai/chat/completions`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${AI_API_TOKEN}`,
+        "Content-Type": "application/json",
+        "X-Enter-Project-ID": AI_PROJECT_ID,
+        "X-Session-ID": `qna-${crypto.randomUUID()}`,
+      },
+      body: JSON.stringify({
+        model: OCR_MODEL,
+        stream: false,
+        temperature: 0,
+        max_tokens: 500,
+        messages: [
+          { role: "system", content: "Answer the user's finance question using only the supplied facts. Do not invent, recalculate, or add unsupported numbers. Be concise and preserve any disclaimer." },
+          { role: "user", content: `Question: ${question}\n\nFacts:\n${facts}` },
+        ],
+      }),
+    });
+    const data = await response.json();
+    const answer = data?.choices?.[0]?.message?.content;
+    return response.ok && typeof answer === "string" && answer.trim() ? answer.trim() : facts;
+  } catch (error) {
+    console.error("whatsapp-webhook: Q&A explanation failed", error instanceof Error ? error.message : error);
+    return facts;
+  }
+}
+
+async function answerFinancialQuestion(supabase: SupabaseClient, companyId: string, question: string): Promise<string> {
+  const lower = question.toLowerCase();
+  const currentPeriod = new Date().toISOString().slice(0, 7);
+  const { data: invoices, error: invoiceError } = await supabase
+    .from("invoices")
+    .select("invoice_id,vendor_id,department,subtotal,tax_amount,total_amount,currency,date,due_date,status")
+    .eq("company_id", companyId)
+    .limit(500);
+  if (invoiceError) throw invoiceError;
+  const rows = invoices ?? [];
+  let facts = "";
+
+  if (/(how much.*spend|spend this month|monthly spend|overview)/.test(lower)) {
+    const monthlySpend = rows.filter((row) => String(row.date).startsWith(currentPeriod)).reduce((sum, row) => sum + Number(row.total_amount), 0);
+    const { data: budgets, error: budgetError } = await supabase.from("budgets").select("allocated,spent").eq("company_id", companyId).eq("period", currentPeriod);
+    if (budgetError) throw budgetError;
+    const allocated = (budgets ?? []).reduce((sum, row) => sum + Number(row.allocated), 0);
+    const spent = (budgets ?? []).reduce((sum, row) => sum + Number(row.spent), 0);
+    facts = `Monthly spend for ${currentPeriod}: INR ${monthlySpend.toFixed(2)}. Budget utilization: ${allocated > 0 ? Math.round((spent / allocated) * 100) : 0}%. Pending invoices: ${rows.filter((row) => row.status === "Pending").length}.`;
+  } else if (/(highest spend|top vendor|biggest vendor)/.test(lower)) {
+    const { data: vendors, error: vendorError } = await supabase.from("vendors").select("vendor_id,name").eq("company_id", companyId);
+    if (vendorError) throw vendorError;
+    const ranked = (vendors ?? []).map((vendor) => ({ name: vendor.name, total: rows.filter((row) => row.vendor_id === vendor.vendor_id).reduce((sum, row) => sum + Number(row.total_amount), 0) })).sort((a, b) => b.total - a.total).slice(0, 5);
+    facts = ranked.length ? ["Top vendors by total spend:", ...ranked.map((row, index) => `${index + 1}. ${row.name}: INR ${row.total.toFixed(2)}`)].join(NL) : "No vendor spend data was found for this company.";
+  } else if (/(pending invoice|unpaid invoice)/.test(lower)) {
+    const pending = rows.filter((row) => row.status === "Pending" || row.status === "Overdue").sort((a, b) => Number(b.total_amount) - Number(a.total_amount)).slice(0, 5);
+    facts = pending.length ? ["Pending invoices:", ...pending.map((row) => `${row.invoice_id}: INR ${Number(row.total_amount).toFixed(2)} (${row.status})`)].join(NL) : "No pending invoices right now.";
+  } else if (/(risky|suspicious|risk alert|anomal)/.test(lower)) {
+    const { data: analyses, error: analysisError } = await supabase.from("invoice_analysis").select("invoice_id,anomaly_score,duplicate_score,vendor_risk_snapshot").in("invoice_id", rows.filter((row) => row.status === "Pending").map((row) => row.invoice_id)).order("anomaly_score", { ascending: false }).limit(5);
+    if (analysisError) throw analysisError;
+    facts = analyses?.length ? ["Highest-risk pending invoices:", ...analyses.map((row) => `${row.invoice_id}: anomaly ${Number(row.anomaly_score ?? 0)}/100, duplicate ${Number(row.duplicate_score ?? 0)}%, vendor risk ${(row.vendor_risk_snapshot as Record<string, unknown> | null)?.computed_risk ?? "unknown"}`)].join(NL) : "No analyzed risk alerts were found.";
+  } else if (/(over budget|overspend|budget left|remaining budget|how much budget)/.test(lower)) {
+    const { data: budgets, error: budgetError } = await supabase.from("budgets").select("department,allocated,spent,remaining").eq("company_id", companyId).eq("period", currentPeriod).order("remaining", { ascending: true }).limit(10);
+    if (budgetError) throw budgetError;
+    facts = budgets?.length ? ["Budget status:", ...budgets.map((row) => `${row.department}: INR ${Number(row.remaining).toFixed(2)} remaining (${Number(row.allocated) > 0 ? Math.round((Number(row.spent) / Number(row.allocated)) * 100) : 0}% used)`)].join(NL) : `No budget was found for ${currentPeriod}.`;
+  } else if (/(afford|can we pay|can i pay)/.test(lower)) {
+    const amount = extractQuestionAmount(question);
+    if (amount === null) return "Please include an invoice amount, for example: Can we afford an INR 300000 invoice?";
+    const { data: budgets, error: budgetError } = await supabase.from("budgets").select("department,allocated,spent,remaining").eq("company_id", companyId).eq("period", currentPeriod).limit(20);
+    if (budgetError) throw budgetError;
+    const totalAllocated = (budgets ?? []).reduce((sum, row) => sum + Number(row.allocated), 0);
+    const totalSpent = (budgets ?? []).reduce((sum, row) => sum + Number(row.spent), 0);
+    facts = `Affordability check for INR ${amount.toFixed(2)}: current spend INR ${totalSpent.toFixed(2)} of INR ${totalAllocated.toFixed(2)}; projected utilization after payment ${totalAllocated > 0 ? Math.round(((totalSpent + amount) / totalAllocated) * 100) : 0}%. This is a budget arithmetic check, not an approval.`;
+  } else if (/(cash position|cash flow|forecast)/.test(lower)) {
+    const { data: transactions, error: transactionError } = await supabase.from("transactions").select("type,amount,date").eq("company_id", companyId).limit(1000);
+    if (transactionError) throw transactionError;
+    const inflow = (transactions ?? []).filter((row) => row.type === "inflow").reduce((sum, row) => sum + Number(row.amount), 0);
+    const outflow = (transactions ?? []).filter((row) => row.type === "outflow").reduce((sum, row) => sum + Number(row.amount), 0);
+    facts = `Historical cash-flow summary: inflow INR ${inflow.toFixed(2)}, outflow INR ${outflow.toFixed(2)}, net INR ${(inflow - outflow).toFixed(2)}. Estimate based on historical patterns - not a guaranteed forecast.`;
+  } else {
+    return ["I can answer questions about:", "- monthly spend and overview", "- top vendors", "- pending or risky invoices", "- budgets and affordability", "- cash-flow summaries", "", "Please rephrase your question or type menu."].join(NL);
+  }
+  return explainFinancialFacts(question, facts);
+}
+
 // ---- Onboarding + OTP (Phase 4) -------------------------------------------
 
 interface OnboardingContext {
@@ -1531,7 +1622,16 @@ Deno.serve(async (req) => {
           replyText = `Invoice ${ingestResult.invoiceId} received and stored safely.`;
         }
       } else {
-        replyText = buildReply(messageType, content);
+        if (messageType === "text" && GREETING_PATTERN.test(content.trim())) {
+          replyText = buildReply(messageType, content);
+        } else if (linkedAccount.user_id) {
+          const { data: linkedUser, error: linkedUserError } = await supabase.from("users").select("company_id").eq("user_id", linkedAccount.user_id).maybeSingle();
+          if (linkedUserError) throw linkedUserError;
+          if (!linkedUser) throw new Error("Linked WhatsApp account has no user record");
+          replyText = await answerFinancialQuestion(supabase, linkedUser.company_id, content);
+        } else {
+          replyText = buildReply(messageType, content);
+        }
       }
 
       const { error: outboundInsertError } = await supabase.from("conversation_messages").insert({
