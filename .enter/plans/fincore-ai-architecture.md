@@ -533,3 +533,60 @@ A user who already has a FinCore account (created via Phase 4 onboarding) needs 
 - [x] A number that recovers into an account, then sends ordinary text afterward, is routed through `buildReply` (Phase 3 menu/echo) rather than onboarding — confirms the identity lookup at the top of the webhook now finds the newly linked `whatsapp_accounts` row.
 - [x] All synthetic test rows created during this verification (test companies/users/otp_sessions/whatsapp_accounts/auth_log/conversation_sessions) are deleted afterward, leaving only seed data plus real user-created rows.
 - [x] Live test: the user completed one real recovery conversation from the existing Phase 4 WhatsApp number after simulating an unlinked number, received the OTP by email, submitted it on WhatsApp, and received `Welcome back` + the full menu; the unique-number relink conflict was fixed and redeployed.
+
+---
+
+## Phase 6 — WhatsApp invoice upload + Enter Cloud Storage
+
+### Context
+
+Onboarded users currently receive only a placeholder when they send an image or document. Phase 6 turns that path into a real invoice-ingest flow: accept PDF/JPG/PNG media from WhatsApp, fetch the media from Meta using the media ID, enforce the confirmed 10 MB limit, store the original privately in Enter Cloud Storage, create the existing `invoices` record with `status='Pending'` and `source_channel='whatsapp_bot'`, and reply with the created invoice ID. OCR, validation, duplicate detection, vendor risk, budgeting, anomaly scoring, and decisions remain Phase 7+ work.
+
+### Confirmed scope
+
+- **Input channel:** WhatsApp only in this phase; no dashboard upload UI.
+- **Allowed types:** PDF, JPEG/JPG, PNG.
+- **Maximum size:** 10 MB (10,485,760 bytes).
+- **Storage:** private bucket `fincore-invoices`; object path `invoices/{company_id}/{invoice_id}.{ext}`. Never expose a public URL; persist only the storage path in `invoices.file_storage_path`.
+- **Invoice metadata:** because extraction is not yet available, create a Pending invoice with deterministic placeholder metadata (`vendor_id` resolved to a safe company vendor or a dedicated pending-vendor strategy decided from existing constraints before implementation), and leave extracted financial fields at safe zero/null values only where the existing schema permits them. Do not invent invoice totals or vendor facts.
+
+### Design
+
+- Extend the webhook's media model to retain `media.id`, MIME type, filename, and caption; the existing `summarizeInboundMessage` result can remain the user-facing content summary while the full message is passed to a same-file ingest helper.
+- For an identified active sender, route `image`/`document` before `buildReply` to `ingestWhatsAppInvoice`. Unidentified senders continue receiving the onboarding text-only prompt and must not create invoice rows.
+- `ingestWhatsAppInvoice` calls Meta Graph `/{media_id}` with the WhatsApp access token, then downloads the returned media URL with the same token. It rejects unsupported MIME types, missing media IDs, download failures, and bodies over 10 MB before storage/database writes.
+- Generate an `INV-<8 hex>` ID using the established `newId` helper. Upload bytes to the private `fincore-invoices` bucket with the service-role Storage client, then insert `invoices` using the identified user's `company_id` and `submitted_by`; if the database insert fails, remove the just-uploaded object to avoid orphaned files.
+- Store a `conversation_messages` outbound reply only after the ingest result is known; reply with success (`Invoice INV-... received and queued for analysis.`) or a concise user-safe rejection. Log technical details server-side only.
+- Keep all implementation in `supabase/functions/whatsapp-webhook/index.ts` initially because this project's bundler does not resolve cross-function `_shared/` imports. A separate `invoice-ingest` backend function remains a later refactor once the platform bundler constraint is addressed.
+
+### Files
+
+- `supabase/functions/whatsapp-webhook/index.ts` — media fields, Meta media fetch/download helper, size/type validation, Storage upload, invoice insert, and active-sender routing.
+- `supabase/migrations/<phase-6-migration>` — create the private `fincore-invoices` storage bucket and narrowly scoped Storage policies only if the platform's Storage schema requires SQL provisioning; preserve all existing tables/data.
+- `docs/demo-script.md` — media upload walkthrough and rejection cases.
+- `.enter/plans/fincore-ai-architecture.md` — phase checklist and verification evidence.
+
+### Implementation checklist (Phase 6)
+
+- [ ] Inspect current Storage bucket/policy state before provisioning `fincore-invoices`; preserve any existing buckets and rows.
+- [ ] Extend the inbound WhatsApp types and extraction path to retain media ID, MIME type, filename, and caption for image/document messages.
+- [ ] Add `ingestWhatsAppInvoice` with Meta media metadata fetch, authenticated binary download, allowed-type validation, and 10 MB byte-limit validation.
+- [ ] Provision/use private `fincore-invoices` Storage and upload to `invoices/{company_id}/{invoice_id}.{ext}` without public URLs.
+- [ ] Resolve the pending-invoice vendor strategy from existing `invoices.vendor_id` constraints before inserting; do not create fabricated vendor financial data.
+- [ ] Insert a Pending `invoices` row with `source_channel='whatsapp_bot'`, `file_storage_path`, company/user ownership, and only schema-valid placeholder fields.
+- [ ] Delete the uploaded object when a later database insert fails; never leave an orphaned object from a failed ingest.
+- [ ] Route active-sender images/documents into ingest and leave onboarding media behavior unchanged for unidentified senders.
+- [ ] Return user-safe success/rejection messages and keep Meta/Storage/database error details server-side only.
+- [ ] Deploy the updated backend function and append the Phase 6 demo steps.
+
+### Verification checklist (Phase 6)
+
+- [ ] Signed simulated active-user image payload with a valid Meta media ID creates one Pending invoice and one private Storage object at the expected company path.
+- [ ] Signed simulated active-user PDF payload creates one Pending invoice and preserves the original filename extension.
+- [ ] Unsupported MIME type is rejected without an invoice row or Storage object.
+- [ ] A downloaded body exactly at 10 MB is accepted; a body at 10 MB + 1 byte is rejected without a database row or object.
+- [ ] Meta metadata/download failure returns a safe WhatsApp reply and creates no invoice/object.
+- [ ] Database insert failure removes the just-uploaded object.
+- [ ] An unlinked sender's image/document still receives onboarding guidance and creates no invoice/object.
+- [ ] Existing seeded invoices, vendors, companies, and all prior live account/recovery rows remain unchanged.
+- [ ] Build/deploy verification passes for the updated webhook function, and the real test number receives the invoice queued acknowledgement for one WhatsApp document.
