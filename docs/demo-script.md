@@ -329,3 +329,20 @@ forecast
 
 Each request reads only the linked company's `transactions`, persists/updates one `forecast_records` row for that horizon, and returns projected inflow, outflow, net, cash position, top outflow categories, and the disclaimer: `Estimate based on recent historical patterns in your transaction data — not a guaranteed forecast.`
 
+---
+
+# Demo script — Phase 14: Security, testing, and performance hardening
+
+Verification completed:
+
+- `pnpm test`: 35 tests passed across validation, duplicate detection, vendor risk, budgets, anomalies, decisions, pipeline, and forecasts.
+- `pnpm lint`: passed.
+- `pnpm exec tsc --noEmit`: passed.
+- `pnpm run build:prod`: passed; existing third-party `use client` bundle warnings remain non-blocking.
+- Backend function deployment: passed.
+- Source scan: no provider access tokens or service-role keys found outside server-side `Deno.env` reads.
+- Webhook idempotency: `whatsapp_message_receipts` prevents duplicate Meta message processing.
+- Database preservation: imported seed partitions and live-company records remain separated; no cleanup was performed.
+
+The webhook now applies 15-second timeout guards to Meta, Resend, Enter AI, and WhatsApp API calls and returns safe user-facing failures while preserving prior persisted facts.
+

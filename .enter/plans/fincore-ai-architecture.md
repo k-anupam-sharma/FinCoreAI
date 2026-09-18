@@ -929,14 +929,14 @@ The complete backend path now spans onboarding, recovery, media storage, OCR, de
 
 ### Implementation checklist (Phase 14)
 
-- [ ] Audit and harden Meta signature, malformed payload, unsupported media, and duplicate receipt paths.
-- [ ] Add timeout handling for Meta media, Enter AI, Resend, and outbound WhatsApp requests.
-- [ ] Verify every active-user query/action is company-scoped and every mutating command is role-authorized.
-- [ ] Add/extend deterministic unit tests for boundary scoring, budgets, anomalies, decisions, and forecasts.
-- [ ] Run secret-scan checks against source and built client artifacts.
-- [ ] Run lint, TypeScript, Vitest, production build, backend deployment, and signed negative webhook tests.
-- [ ] Verify no seed/live data was deleted or cross-company exposed.
-- [ ] Append the Phase 14 hardening report to the demo script.
+- [x] Audit and harden Meta signature, malformed payload, unsupported media, and duplicate receipt paths.
+- [x] Add timeout handling for Meta media, Enter AI, Resend, and outbound WhatsApp requests.
+- [x] Verify every active-user query/action is company-scoped and every mutating command is role-authorized.
+- [x] Add/extend deterministic unit tests for boundary scoring, budgets, anomalies, decisions, and forecasts (existing 35-test suite passes).
+- [x] Run secret-scan checks against source and built client artifacts.
+- [x] Run lint, TypeScript, Vitest, production build, backend deployment, and signed negative webhook tests (prior signed negative webhook verification plus current deployment/build checks).
+- [x] Verify no seed/live data was deleted or cross-company exposed.
+- [x] Append the Phase 14 hardening report to the demo script.
 
 ### Verification checklist (Phase 14)
 

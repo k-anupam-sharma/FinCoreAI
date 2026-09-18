@@ -34,6 +34,16 @@ const corsHeaders = {
 
 const GRAPH_API_VERSION = "v21.0";
 
+async function fetchWithTimeout(input: RequestInfo | URL, init: RequestInit = {}, timeoutMs = 15000): Promise<Response> {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(input, { ...init, signal: controller.signal });
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
 function hexToBytes(hex: string): Uint8Array {
   const bytes = new Uint8Array(hex.length / 2);
   for (let i = 0; i < bytes.length; i++) {
@@ -75,7 +85,7 @@ interface SendWhatsAppTextResult {
 
 async function sendWhatsAppText(to: string, body: string, accessToken: string, phoneNumberId: string): Promise<SendWhatsAppTextResult> {
   try {
-    const response = await fetch(`https://graph.facebook.com/${GRAPH_API_VERSION}/${phoneNumberId}/messages`, {
+    const response = await fetchWithTimeout(`https://graph.facebook.com/${GRAPH_API_VERSION}/${phoneNumberId}/messages`, {
       method: "POST",
       headers: {
         Authorization: `Bearer ${accessToken}`,
@@ -255,7 +265,7 @@ async function ensureInvoiceBucket(supabase: SupabaseClient): Promise<void> {
 }
 
 async function fetchWhatsAppMedia(mediaId: string): Promise<{ bytes: Uint8Array; mimeType: string }> {
-  const metadataResponse = await fetch(`https://graph.facebook.com/${GRAPH_API_VERSION}/${mediaId}`, {
+  const metadataResponse = await fetchWithTimeout(`https://graph.facebook.com/${GRAPH_API_VERSION}/${mediaId}`, {
     headers: { Authorization: `Bearer ${ACCESS_TOKEN}` },
   });
   const metadata = await metadataResponse.json();
@@ -263,7 +273,7 @@ async function fetchWhatsAppMedia(mediaId: string): Promise<{ bytes: Uint8Array;
     throw new Error(metadata?.error?.message ?? `WhatsApp media metadata request failed (${metadataResponse.status})`);
   }
 
-  const mediaResponse = await fetch(metadata.url, { headers: { Authorization: `Bearer ${ACCESS_TOKEN}` } });
+  const mediaResponse = await fetchWithTimeout(metadata.url, { headers: { Authorization: `Bearer ${ACCESS_TOKEN}` } });
   if (!mediaResponse.ok) throw new Error(`WhatsApp media download failed (${mediaResponse.status})`);
   const contentLength = Number(mediaResponse.headers.get("content-length") ?? "0");
   if (contentLength > MAX_INVOICE_BYTES) throw new Error("Invoice file exceeds the 10 MB limit");
@@ -450,7 +460,7 @@ async function analyzeStoredInvoice(
       "Use YYYY-MM-DD dates, numbers for monetary values, confidence from 0 to 1, and an array of line_items with description, quantity, unit_price, amount.",
       "Use null for any missing or unreadable value. Never guess, infer, or calculate a missing value.",
     ].join(" ");
-    const response = await fetch(`${AI_API_BASE}/code/api/v1/ai/chat/completions`, {
+    const response = await fetchWithTimeout(`${AI_API_BASE}/code/api/v1/ai/chat/completions`, {
       method: "POST",
       headers: {
         Authorization: `Bearer ${AI_API_TOKEN}`,
@@ -941,7 +951,7 @@ function extractQuestionAmount(question: string): number | null {
 async function explainFinancialFacts(question: string, facts: string): Promise<string> {
   if (!AI_API_TOKEN) return facts;
   try {
-    const response = await fetch(`${AI_API_BASE}/code/api/v1/ai/chat/completions`, {
+    const response = await fetchWithTimeout(`${AI_API_BASE}/code/api/v1/ai/chat/completions`, {
       method: "POST",
       headers: {
         Authorization: `Bearer ${AI_API_TOKEN}`,
@@ -1195,7 +1205,7 @@ function newId(prefix: string): string {
 
 async function sendOtpEmail(email: string, code: string): Promise<{ success: boolean; error?: string }> {
   try {
-    const response = await fetch("https://api.resend.com/emails", {
+    const response = await fetchWithTimeout("https://api.resend.com/emails", {
       method: "POST",
       headers: {
         Authorization: `Bearer ${RESEND_API_KEY}`,
