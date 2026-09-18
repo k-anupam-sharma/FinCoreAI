@@ -903,3 +903,49 @@ Phase 13 turns the imported and live transaction history into persisted 30/60/90
 - [ ] Forecast data from another company is never included.
 - [ ] The disclaimer appears in every forecast response and persisted record.
 - [ ] Lint, TypeScript, production build, backend deployment, and live WhatsApp forecast tests pass.
+
+---
+
+## Phase 14 — Security, testing, and performance hardening
+
+### Context
+
+The complete backend path now spans onboarding, recovery, media storage, OCR, deterministic intelligence, Q&A, workflow actions, and forecasts. Phase 14 audits the real backend path rather than only the frozen client demo: secrets, signature verification, company isolation, idempotency, authorization, malformed inputs, retries, and performance safeguards.
+
+### Design decisions
+
+- **Tests:** run the existing Vitest suite and add focused tests for pure deterministic logic where practical; keep backend-only calls out of browser tests. Use signed webhook fixtures for integration-style behavior and direct Database verification for writes.
+- **Security:** verify no secrets appear in source/client bundles/log messages; retain raw-body HMAC validation; keep service-role access server-only; enforce company scope on every user-linked query; keep action role checks backend-only.
+- **Reliability:** retain `whatsapp_message_receipts` atomic deduplication; add explicit request/media/AI timeouts and safe failure responses; ensure partial pipeline stages never overwrite earlier facts or create duplicate analysis/decision rows.
+- **Performance:** cap transaction/invoice/history query sizes, avoid repeated unbounded scans, keep WhatsApp replies bounded, and document the synchronous OCR limitation plus future background-job refactor.
+- **Data safety:** no cleanup of the five earlier duplicate test invoices or imported seed data; verify all mutations are scoped to the current live test company.
+
+### Files
+
+- `supabase/functions/whatsapp-webhook/index.ts` — timeout guards, bounded query/retry safeguards, and final security fixes.
+- `src/lib/fincore/__tests__/*` — deterministic regression/boundary coverage if additional pure tests are needed.
+- `docs/demo-script.md` — Phase 14 security/performance verification commands.
+- `.enter/plans/fincore-ai-architecture.md` — Phase 14 checklist and evidence.
+
+### Implementation checklist (Phase 14)
+
+- [ ] Audit and harden Meta signature, malformed payload, unsupported media, and duplicate receipt paths.
+- [ ] Add timeout handling for Meta media, Enter AI, Resend, and outbound WhatsApp requests.
+- [ ] Verify every active-user query/action is company-scoped and every mutating command is role-authorized.
+- [ ] Add/extend deterministic unit tests for boundary scoring, budgets, anomalies, decisions, and forecasts.
+- [ ] Run secret-scan checks against source and built client artifacts.
+- [ ] Run lint, TypeScript, Vitest, production build, backend deployment, and signed negative webhook tests.
+- [ ] Verify no seed/live data was deleted or cross-company exposed.
+- [ ] Append the Phase 14 hardening report to the demo script.
+
+### Verification checklist (Phase 14)
+
+- [ ] Invalid HMAC returns 401 and writes no receipt/session/message rows.
+- [ ] Duplicate Meta message ID is ignored atomically and produces no second invoice/reply.
+- [ ] Oversized/unsupported media returns a safe message without Storage or invoice writes.
+- [ ] AI/Meta/WhatsApp timeout returns a safe response and preserves stored invoice facts.
+- [ ] Viewer/auditor workflow action is denied; cross-company invoice/alert IDs are not exposed.
+- [ ] Existing Vitest suite passes, including duplicate, vendor-risk, anomaly, decision, and forecast boundaries.
+- [ ] Source/build secret scan finds no access tokens or service-role keys.
+- [ ] Production build and backend deployment pass; query/result sizes stay within documented caps.
+- [ ] Database counts and company partitions match the pre-hardening baseline except intentional live rows.
