@@ -368,5 +368,5 @@ Gemini Lite classifies the request into an allowlisted intent. Qwen is reserved 
 
 Qwen may answer broader questions about approved FinCore datasets: invoices, vendors, payments, budgets, transactions, decisions, alerts, forecasts, users, and companies. It first creates a validated read-only query plan; the backend applies company scope, allowed-table/column rules, row limits, and no-mutation checks before facts are sent for explanation.
 
-Questions outside the datasets, such as weather or general trivia, are rejected. The model cannot request raw SQL, credentials, another company, or data outside the approved tables.
+Questions outside the datasets, such as weather or general trivia, are rejected. For the hackathon demo, Gemini receives the complete approved snapshot for the selected seeded company, including users, vendors, invoices, payments, budgets, transactions, decisions, bank changes, auth history, invoice analyses/items, alerts, and forecasts. The model cannot request raw SQL, credentials, another company, or data outside the approved tables.
 

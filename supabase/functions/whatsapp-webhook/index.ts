@@ -1118,7 +1118,43 @@ async function classifyDatasetPlan(question: string): Promise<DatasetPlan | null
   return parsed ? normalizeDatasetPlan(parsed) : null;
 }
 
+async function answerFullCompanyDatasetQuestion(supabase: SupabaseClient, companyId: string, question: string): Promise<string | null> {
+  const { data: scopedInvoices, error: invoiceIdError } = await supabase.from("invoices").select("invoice_id").eq("company_id", companyId).limit(2000);
+  if (invoiceIdError) throw invoiceIdError;
+  const invoiceIds = (scopedInvoices ?? []).map((row) => row.invoice_id);
+  const [company, users, vendors, invoices, payments, budgets, transactions, decisions, bankChanges, authLog, analyses, items, alerts, forecasts] = await Promise.all([
+    supabase.from("companies").select("company_id,name,industry,country,plan_tier").eq("company_id", companyId).maybeSingle(),
+    supabase.from("users").select("user_id,name,role,account_status,created_at").eq("company_id", companyId).limit(100),
+    supabase.from("vendors").select("vendor_id,name,category,risk_profile,status").eq("company_id", companyId).limit(100),
+    supabase.from("invoices").select("invoice_id,vendor_id,department,subtotal,tax_amount,total_amount,currency,date,due_date,status,po_number,ocr_confidence,file_storage_path").eq("company_id", companyId).limit(2000),
+    supabase.from("payments").select("payment_id,invoice_id,amount,status,payment_method,payment_date").eq("company_id", companyId).limit(2000),
+    supabase.from("budgets").select("budget_id,department,period,allocated,spent,remaining").eq("company_id", companyId).limit(1000),
+    supabase.from("transactions").select("transaction_id,date,type,category,amount").eq("company_id", companyId).limit(2000),
+    supabase.from("decisions").select("decision_id,invoice_id,recommendation,reasoning,confidence_score,timestamp").eq("company_id", companyId).limit(1000),
+    supabase.from("vendor_bank_changes").select("change_id,vendor_id,new_bank_name,changed_at").eq("company_id", companyId).limit(200),
+    supabase.from("auth_log").select("log_id,user_id,event_type,success,device,timestamp").eq("company_id", companyId).limit(1000),
+    invoiceIds.length ? supabase.from("invoice_analysis").select("invoice_id,extracted_fields,validation_result,duplicate_score,duplicate_evidence,vendor_risk_snapshot,budget_impact,anomaly_score,anomaly_reasons,created_at").in("invoice_id", invoiceIds) : Promise.resolve({ data: [], error: null }),
+    invoiceIds.length ? supabase.from("invoice_items").select("invoice_id,line_no,description,quantity,unit_price,amount,gl_account").in("invoice_id", invoiceIds).limit(4000) : Promise.resolve({ data: [], error: null }),
+    supabase.from("risk_alerts").select("id,alert_type,severity,related_invoice_id,message,status,created_at,resolved_at").eq("company_id", companyId).limit(500),
+    supabase.from("forecast_records").select("id,generated_at,horizon_days,projected_inflow,projected_outflow,projected_net,projected_cash_position,disclaimer").eq("company_id", companyId).limit(20),
+  ]);
+  const results = [company, users, vendors, invoices, payments, budgets, transactions, decisions, bankChanges, authLog, analyses, items, alerts, forecasts];
+  const failed = results.find((result) => result.error);
+  if (failed?.error) throw failed.error;
+  const snapshot = { company: company.data, users: users.data, vendors: vendors.data, invoices: invoices.data, payments: payments.data, budgets: budgets.data, transactions: transactions.data, decisions: decisions.data, vendor_bank_changes: bankChanges.data, auth_log: authLog.data, invoice_analysis: analyses.data, invoice_items: items.data, risk_alerts: alerts.data, forecast_records: forecasts.data };
+  const facts = JSON.stringify(snapshot).slice(0, 350000);
+  return callGeminiText(
+    "You are the FinCore demo chatbot. Answer only from the complete company-scoped dataset snapshot supplied below. You may answer any question about those records, but never invent values, use external knowledge, reveal secrets, expose another company, or claim data that is absent. If a value is absent or a dataset is empty, say so clearly. Do not perform mutations. Keep the answer concise and show calculations only when directly supported by the records.",
+    `Question: ${question}${NL}${NL}Complete company dataset snapshot:${NL}${facts}`,
+    900,
+  );
+}
+
 async function answerDatasetQuestion(supabase: SupabaseClient, companyId: string, question: string): Promise<string | null> {
+  // Demo mode gives Gemini the complete approved company snapshot so it can answer
+  // cross-dataset questions instead of relying only on keyword branches.
+  const fullAnswer = await answerFullCompanyDatasetQuestion(supabase, companyId, question);
+  if (fullAnswer) return fullAnswer;
   const plan = await classifyDatasetPlan(question);
   if (!plan || !plan.in_scope || !plan.table || !plan.columns.length) return null;
   const config = DATASET_ALLOWLIST[plan.table];
