@@ -4410,6 +4410,24 @@ export type Database = {
           },
         ]
       }
+      whatsapp_message_receipts: {
+        Row: {
+          received_at: string
+          wa_id: string
+          wa_message_id: string
+        }
+        Insert: {
+          received_at?: string
+          wa_id: string
+          wa_message_id: string
+        }
+        Update: {
+          received_at?: string
+          wa_id?: string
+          wa_message_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never

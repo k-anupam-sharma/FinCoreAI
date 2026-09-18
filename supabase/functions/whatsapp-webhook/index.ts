@@ -1007,6 +1007,17 @@ Deno.serve(async (req) => {
   for (const message of inboundMessages) {
     try {
       const waId = message.from;
+      const { error: receiptError } = await supabase.from("whatsapp_message_receipts").insert({
+        wa_message_id: message.id,
+        wa_id: waId,
+      });
+      if (receiptError) {
+        if (receiptError.code === "23505") {
+          console.info(`whatsapp-webhook: ignoring duplicate Meta message ${message.id}`);
+          continue;
+        }
+        throw receiptError;
+      }
       const summary = summarizeInboundMessage(message);
       const { messageType, content } = summary;
 
