@@ -61,9 +61,83 @@ Verified live on 2026-09-18 — see the architecture plan's Phase 3 verification
 
 ## Status of later phases
 
-Onboarding, invoice analysis, duplicate/vendor/anomaly detection, the decision
+Invoice analysis, duplicate/vendor/anomaly detection, the decision
 engine, Q&A, alerts, and forecasting are not yet wired into this webhook.
 They currently exist only as the client-side demo at `/assistant`
 (`src/lib/fincore/*`, `src/data/fincoreStore.ts`) and will be ported to
 real backend functions phase by phase, per
 `.enter/plans/fincore-ai-architecture.md`.
+
+---
+
+# Demo script — Phase 4: Onboarding + account creation
+
+Requires `RESEND_API_KEY` in addition to the Phase 3 WhatsApp secrets.
+Replace `<APP_SECRET>` with the real value.
+
+## 1. Full onboarding conversation (new company)
+
+Send each message as a separate signed POST (see the `send()` helper pattern
+from Phase 3, one request at a time — do not batch requests in a loop with
+`date`-based unique IDs, which was flaky in testing):
+
+```bash
+BASE="https://spb-t4nh1r2458mb8j8t.supabase.opentrust.net/functions/v1/whatsapp-webhook"
+APP_SECRET="<APP_SECRET>"
+WAID="<a wa_id never seen before>"
+
+send() {
+  local text="$1" id="$2"
+  local body='{"entry":[{"changes":[{"value":{"messages":[{"from":"'"$WAID"'","id":"wamid.'"$id"'","timestamp":"1700000000","type":"text","text":{"body":"'"$text"'"}}]}}]}]}'
+  local sig=$(printf '%s' "$body" | openssl dgst -sha256 -hmac "$APP_SECRET" | sed 's/^.* //')
+  curl -s --max-time 30 -w "\nHTTP_STATUS:%{http_code}\n" -X POST "$BASE" -H "Content-Type: application/json" -H "X-Hub-Signature-256: sha256=$sig" --data-raw "$body"
+}
+
+send "Hi" "1"                                # -> onboarding_name
+send "Your Name" "2"                          # -> onboarding_company
+send "Your Company Name" "3"                  # -> onboarding_role (new or existing company detected here)
+send "Your Role" "4"                          # -> onboarding_industry
+send "Your Industry" "5"                      # -> onboarding_spend
+send "500000" "6"                             # -> onboarding_email
+send "you@example.com" "7"                    # -> onboarding_otp (OTP emailed via Resend)
+```
+
+Check progress at any point:
+
+```sql
+select state, context from conversation_sessions where wa_id = '<WAID>';
+select id, otp_hash, status, attempt_count from otp_sessions where destination = '<the email used>';
+```
+
+## 2. Completing verification
+
+With the real Resend sandbox sender, the code only reliably reaches the
+developer's own verified Resend account email — check that inbox for the
+6-digit code, then:
+
+```bash
+send "<the 6-digit code>" "8"
+```
+
+Expect the reply to include "Your FinCore account has been created." followed
+by the main menu. Verify:
+
+```sql
+select * from companies where company_id = (select context->>'resolvedCompanyId' from conversation_sessions where wa_id = '<WAID>');
+select * from users where email = '<the email used>';
+select * from auth_methods where value = '<the email used>';
+select * from whatsapp_accounts where wa_id = '<WAID>';
+```
+
+## 3. Negative / boundary cases verified during Phase 4 development
+
+- Invalid email (no `@`) at the `onboarding_email` step re-prompts without creating an `otp_sessions` row or advancing state.
+- A wrong OTP code increments `otp_sessions.attempt_count` and creates no account rows.
+- 5 wrong OTP codes in a row sets `otp_sessions.status='locked'` and resets the session to `state='new'`.
+- Typing a company name that case-insensitively matches an existing company (tested against both a freshly-created company and a real CSV-seeded company, e.g. "nimbusworks pvt ltd" -> `COMP-01`) joins as `role='viewer'` against the existing `company_id` — no duplicate company row.
+- A brand-new company name creates exactly one new `companies` row and the joining user gets `role='admin'`.
+- A `wa_id` that already completed onboarding (has an active `whatsapp_accounts` link) skips onboarding entirely on its next message and gets the Phase 3 menu/echo behavior instead.
+- Typing "login" or "recover account" from an unidentified sender returns a "coming in a later phase" reply instead of being swallowed into the `name` field.
+
+All of the above were verified via direct `supabase_read_query` checks against the real database during development (2026-09-18), then the test rows were deleted. A live end-to-end run from a real, never-before-seen WhatsApp number is still recommended before considering this phase fully demo-ready.
+

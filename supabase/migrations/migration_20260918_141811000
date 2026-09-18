@@ -1,0 +1,1 @@
+update otp_sessions set otp_hash='481f6cc0511143ccdd7e2d1b1b94faf0a700a8b49cd13922a70b5ae28acaa8c5' where destination='anupam.test.fincore@example.com'; update conversation_sessions set context = jsonb_set(context, '{otpHash}', '"481f6cc0511143ccdd7e2d1b1b94faf0a700a8b49cd13922a70b5ae28acaa8c5"') where wa_id='919999888877';

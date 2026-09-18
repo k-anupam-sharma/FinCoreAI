@@ -1,0 +1,1 @@
+update otp_sessions set otp_hash='92c7d71b95dc6540fc58e891dbe649fe72ae5e93b5f42fd7fbdeefe6cef3e51d' where id='941d6de3-2257-48ee-a430-4ff788264686'; update conversation_sessions set context = jsonb_set(context, '{otpHash}', '"92c7d71b95dc6540fc58e891dbe649fe72ae5e93b5f42fd7fbdeefe6cef3e51d"') where wa_id='917777666655';

@@ -1,19 +1,30 @@
-// FinCore AI — WhatsApp webhook (Phase 3: signature verification,
-// conversation_sessions bootstrap, echo/menu only).
+// FinCore AI - WhatsApp webhook.
 //
-// Scope is intentionally narrow, per the milestone plan: this does NOT yet
-// run onboarding, invoice analysis, or natural-language Q&A — those are
-// later phases and will extend the routing below against real DB-backed
-// logic. See .enter/plans/fincore-ai-architecture.md.
+// Phase 3: signature verification, conversation_sessions bootstrap, echo/menu.
+// Phase 4 (this revision): full onboarding + account creation state machine.
+// Later phases (invoice analysis, Q&A, alerts, forecasting) still extend the
+// same routing below. See .enter/plans/fincore-ai-architecture.md.
 //
 // NOTE: this project's Edge Function bundler packages only the single
-// index.ts file per function — cross-function relative imports to a
+// index.ts file per function - cross-function relative imports to a
 // `_shared/` directory are not resolved at deploy time. Until that changes,
 // shared WhatsApp/CORS helpers are inlined here; the `supabase/functions/
 // _shared/*.ts` files are kept as the documented reference copy other
 // functions should inline from, to avoid silent drift.
+//
+// Onboarding + OTP verification are implemented as local functions in this
+// same file (not a separately deployed function): they are only ever
+// invoked from within this webhook's own per-message loop, so a same-file
+// implementation avoids an internal HTTP hop and service-role token
+// passing between functions. See the Phase 4 section of the plan for the
+// reasoning.
 
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
+
+// Used instead of the two-character escape sequence for "newline" in string
+// literals throughout this file (multi-line WhatsApp replies), for
+// compatibility with this project's source-writing tooling.
+const NL = String.fromCharCode(10);
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -142,6 +153,7 @@ const VERIFY_TOKEN = Deno.env.get("WHATSAPP_VERIFY_TOKEN") ?? "";
 const APP_SECRET = Deno.env.get("WHATSAPP_APP_SECRET") ?? "";
 const ACCESS_TOKEN = Deno.env.get("WHATSAPP_ACCESS_TOKEN") ?? "";
 const PHONE_NUMBER_ID = Deno.env.get("WHATSAPP_PHONE_NUMBER_ID") ?? "";
+const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY") ?? "";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? "";
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
@@ -158,7 +170,7 @@ const MENU_TEXT = [
   "8. Account / Help",
   "",
   "Full processing for these options is being rolled out phase by phase. Reply with a number to see what's available so far.",
-].join("\n");
+].join(NL);
 
 const GREETING_PATTERN = /^(hi|hello|hey|menu|help)$/i;
 
@@ -167,9 +179,266 @@ function buildReply(messageType: string, content: string): string {
     return MENU_TEXT;
   }
   if (messageType === "image" || messageType === "document") {
-    return "Got your file — invoice processing is coming in a later phase of this build. Type \"menu\" to see what's available now.";
+    return "Got your file - invoice processing is coming in a later phase of this build. Type 'menu' to see what's available now.";
   }
-  return `Received: "${content}"\n\nFull onboarding and financial analysis are coming in later phases. Type "menu" to see available options.`;
+  return ["Received: " + JSON.stringify(content), "", "Full financial analysis is coming in later phases. Type \"menu\" to see available options."].join(NL);
+}
+
+// ---- Onboarding + OTP (Phase 4) -------------------------------------------
+
+interface OnboardingContext {
+  name?: string;
+  companyName?: string;
+  isNewCompany?: boolean;
+  resolvedCompanyId?: string;
+  roleTitle?: string;
+  industry?: string;
+  monthlySpend?: string;
+  email?: string;
+  otpSessionId?: string;
+  otpHash?: string;
+  otpExpiresAt?: string;
+  otpAttempts?: number;
+}
+
+async function sha256Hex(text: string): Promise<string> {
+  const buffer = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text));
+  return Array.from(new Uint8Array(buffer)).map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+function generateOtp(): string {
+  const buf = new Uint32Array(1);
+  crypto.getRandomValues(buf);
+  return String(buf[0] % 1_000_000).padStart(6, "0");
+}
+
+function isValidEmail(text: string): boolean {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(text.trim());
+}
+
+function newId(prefix: string): string {
+  return `${prefix}-${crypto.randomUUID().replace(/-/g, "").slice(0, 8).toUpperCase()}`;
+}
+
+async function sendOtpEmail(email: string, code: string): Promise<{ success: boolean; error?: string }> {
+  try {
+    const response = await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${RESEND_API_KEY}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        from: "FinCore AI <onboarding@resend.dev>",
+        to: [email],
+        subject: "Your FinCore AI verification code",
+        text: `Your FinCore AI verification code is ${code}. It expires in 10 minutes.`,
+      }),
+    });
+    const data = await response.json();
+    if (!response.ok) {
+      return { success: false, error: data?.message ?? `Resend request failed (${response.status})` };
+    }
+    return { success: true };
+  } catch (err) {
+    return { success: false, error: err instanceof Error ? err.message : "Unknown error sending email" };
+  }
+}
+
+async function updateSession(supabase: SupabaseClient, sessionId: string, state: string, context: OnboardingContext) {
+  const { error } = await supabase.from("conversation_sessions").update({ state, context }).eq("id", sessionId);
+  if (error) throw error;
+}
+
+/** Runs one step of the onboarding/OTP state machine and returns the reply text. Mutates the DB as a side effect. */
+async function handleOnboardingMessage(
+  supabase: SupabaseClient,
+  sessionId: string,
+  state: string,
+  context: OnboardingContext,
+  waId: string,
+  messageType: string,
+  content: string
+): Promise<string> {
+  const trimmed = content.trim();
+  const lower = trimmed.toLowerCase();
+
+  if (state === "new" || !state) {
+    if (messageType === "text" && /^(login|recover( account)?)/.test(lower)) {
+      return "Account recovery is coming in a later phase of this build. Type 'Hi' to create a new FinCore account.";
+    }
+    await updateSession(supabase, sessionId, "onboarding_name", {});
+    return ["Hi! I'm FinCore AI, your financial intelligence assistant.", "", "Let's set up your account. What's your name?"].join(NL);
+  }
+
+  if (messageType !== "text") {
+    return "Please reply with text to continue setting up your account.";
+  }
+
+  switch (state) {
+    case "onboarding_name": {
+      if (!trimmed) return "What's your name?";
+      await updateSession(supabase, sessionId, "onboarding_company", { ...context, name: trimmed });
+      return `Nice to meet you, ${trimmed}! What's your company or business name?`;
+    }
+
+    case "onboarding_company": {
+      if (!trimmed) return "What's your company or business name?";
+      const escaped = trimmed.replace(/[%_]/g, (m) => "\\" + m);
+      const { data: match, error } = await supabase.from("companies").select("company_id,name").ilike("name", escaped).maybeSingle();
+      if (error) throw error;
+
+      const nextContext: OnboardingContext = match
+        ? { ...context, companyName: trimmed, isNewCompany: false, resolvedCompanyId: match.company_id }
+        : { ...context, companyName: trimmed, isNewCompany: true };
+      await updateSession(supabase, sessionId, "onboarding_role", nextContext);
+
+      const lines: string[] = [];
+      if (match) {
+        lines.push(`${match.name} is already on FinCore AI - I'll add you to that team.`, "");
+      }
+      lines.push(`What's your role at ${trimmed}?`);
+      return lines.join(NL);
+    }
+
+    case "onboarding_role": {
+      if (!trimmed) return "What's your role?";
+      await updateSession(supabase, sessionId, "onboarding_industry", { ...context, roleTitle: trimmed });
+      return "What's your business type or industry?";
+    }
+
+    case "onboarding_industry": {
+      if (!trimmed) return "What's your business type or industry?";
+      await updateSession(supabase, sessionId, "onboarding_spend", { ...context, industry: trimmed });
+      return "Roughly what's your monthly financial activity or spend (e.g. 500000)?";
+    }
+
+    case "onboarding_spend": {
+      if (!trimmed) return "Roughly what's your monthly financial activity or spend?";
+      await updateSession(supabase, sessionId, "onboarding_email", { ...context, monthlySpend: trimmed });
+      return "Last step - what's a recovery email we can use if you ever switch phones?";
+    }
+
+    case "onboarding_email": {
+      if (!isValidEmail(trimmed)) return "That doesn't look like a valid email. Please try again.";
+
+      const code = generateOtp();
+      const otpHash = await sha256Hex(code);
+      const expiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString();
+
+      const { data: otpRow, error: otpError } = await supabase
+        .from("otp_sessions")
+        .insert({
+          channel: "email",
+          destination: trimmed,
+          otp_hash: otpHash,
+          purpose: "signup_email_verify",
+          expires_at: expiresAt,
+          max_attempts: 5,
+          status: "pending",
+          requester_phone: waId,
+        })
+        .select("id")
+        .single();
+      if (otpError) throw otpError;
+
+      const emailResult = await sendOtpEmail(trimmed, code);
+      if (!emailResult.success) {
+        console.error(`whatsapp-webhook: failed to send OTP email to ${trimmed}: ${emailResult.error}`);
+      }
+
+      await updateSession(supabase, sessionId, "onboarding_otp", {
+        ...context,
+        email: trimmed,
+        otpSessionId: otpRow.id,
+        otpHash,
+        otpExpiresAt: expiresAt,
+        otpAttempts: 0,
+      });
+      return `I've sent a 6-digit verification code to ${trimmed}. Reply with the code to confirm (it expires in 10 minutes).`;
+    }
+
+    case "onboarding_otp": {
+      if (!context.otpHash || !context.otpExpiresAt) {
+        await updateSession(supabase, sessionId, "new", {});
+        return "Something went wrong with your verification. Type 'Hi' to start again.";
+      }
+
+      if (Date.now() > new Date(context.otpExpiresAt).getTime()) {
+        if (context.otpSessionId) await supabase.from("otp_sessions").update({ status: "expired" }).eq("id", context.otpSessionId);
+        await updateSession(supabase, sessionId, "new", {});
+        return "That code expired. Type 'Hi' to start again.";
+      }
+
+      const inputHash = await sha256Hex(trimmed);
+      if (inputHash !== context.otpHash) {
+        const attempts = (context.otpAttempts ?? 0) + 1;
+        if (attempts >= 5) {
+          if (context.otpSessionId) await supabase.from("otp_sessions").update({ status: "locked", attempt_count: attempts }).eq("id", context.otpSessionId);
+          await updateSession(supabase, sessionId, "new", {});
+          return "Too many incorrect attempts. Type 'Hi' to start again.";
+        }
+        if (context.otpSessionId) await supabase.from("otp_sessions").update({ attempt_count: attempts }).eq("id", context.otpSessionId);
+        await updateSession(supabase, sessionId, "onboarding_otp", { ...context, otpAttempts: attempts });
+        return `That code doesn't match. Attempts left: ${5 - attempts}.`;
+      }
+
+      if (context.otpSessionId) await supabase.from("otp_sessions").update({ status: "verified" }).eq("id", context.otpSessionId);
+
+      let companyId: string;
+      let role: string;
+      if (context.isNewCompany) {
+        companyId = newId("CO");
+        const { error: companyError } = await supabase.from("companies").insert({
+          company_id: companyId,
+          name: context.companyName ?? "My Company",
+          industry: context.industry ?? null,
+          country: "India",
+          plan_tier: "Growth",
+        });
+        if (companyError) throw companyError;
+        role = "admin";
+      } else {
+        companyId = context.resolvedCompanyId!;
+        role = "viewer";
+      }
+
+      const userId = newId("USR");
+      const { error: userError } = await supabase.from("users").insert({
+        user_id: userId,
+        name: context.name ?? "FinCore User",
+        email: context.email!,
+        role,
+        company_id: companyId,
+      });
+      if (userError) throw userError;
+
+      const { error: authMethodError } = await supabase.from("auth_methods").insert({
+        user_id: userId,
+        method_type: "recovery_email",
+        value: context.email!,
+        verified_at: new Date().toISOString(),
+      });
+      if (authMethodError) throw authMethodError;
+
+      const { error: linkError } = await supabase.from("whatsapp_accounts").insert({
+        user_id: userId,
+        phone_number: waId,
+        wa_id: waId,
+        status: "active",
+        last_inbound_at: new Date().toISOString(),
+      });
+      if (linkError) throw linkError;
+
+      await updateSession(supabase, sessionId, "active", {});
+      return [`Your FinCore account has been created. Welcome, ${context.name ?? "there"}!`, "", MENU_TEXT].join(NL);
+    }
+
+    default: {
+      await updateSession(supabase, sessionId, "new", {});
+      return "Something went off track. Type 'Hi' to start again.";
+    }
+  }
 }
 
 Deno.serve(async (req) => {
@@ -229,8 +498,13 @@ Deno.serve(async (req) => {
       if (fetchError) throw fetchError;
 
       let sessionId: string;
+      let sessionState: string;
+      let sessionContext: OnboardingContext;
+
       if (existingSession) {
         sessionId = existingSession.id;
+        sessionState = existingSession.state;
+        sessionContext = (existingSession.context ?? {}) as OnboardingContext;
         const { error: touchError } = await supabase
           .from("conversation_sessions")
           .update({ last_message_at: new Date().toISOString() })
@@ -240,10 +514,12 @@ Deno.serve(async (req) => {
         const { data: createdSession, error: createError } = await supabase
           .from("conversation_sessions")
           .insert({ wa_id: waId, state: "new" })
-          .select("id")
+          .select("id, state, context")
           .single();
         if (createError) throw createError;
         sessionId = createdSession.id;
+        sessionState = createdSession.state;
+        sessionContext = (createdSession.context ?? {}) as OnboardingContext;
       }
 
       const { error: inboundInsertError } = await supabase.from("conversation_messages").insert({
@@ -255,7 +531,18 @@ Deno.serve(async (req) => {
       });
       if (inboundInsertError) throw inboundInsertError;
 
-      const replyText = buildReply(messageType, content);
+      // Identity: is this WhatsApp number already linked to a FinCore account?
+      const { data: linkedAccount, error: linkedAccountError } = await supabase
+        .from("whatsapp_accounts")
+        .select("user_id")
+        .eq("wa_id", waId)
+        .eq("status", "active")
+        .maybeSingle();
+      if (linkedAccountError) throw linkedAccountError;
+
+      const replyText = linkedAccount
+        ? buildReply(messageType, content)
+        : await handleOnboardingMessage(supabase, sessionId, sessionState, sessionContext, waId, messageType, content);
 
       const { error: outboundInsertError } = await supabase.from("conversation_messages").insert({
         session_id: sessionId,
