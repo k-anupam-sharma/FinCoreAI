@@ -1159,7 +1159,24 @@ async function answerFinancialQuestion(supabase: SupabaseClient, companyId: stri
   const rows = invoices ?? [];
   let facts = "";
 
-  if (/(how much.*spend|spend this month|monthly spend|overview)/.test(lower)) {
+  if (/(how many datasets|number of datasets|datasets.*present)/.test(lower)) {
+    const datasetNames = ["companies", "users", "vendors", "invoices", "payments", "budgets", "transactions", "decisions", "invoice_analysis", "risk_alerts", "forecast_records"];
+    const counts = await Promise.all(datasetNames.map(async (table) => {
+      if (table === "invoice_analysis") {
+        const { data: scopedInvoices, error: invoiceError } = await supabase.from("invoices").select("invoice_id").eq("company_id", companyId).limit(500);
+        if (invoiceError || !scopedInvoices?.length) return { table, count: invoiceError ? null : 0 };
+        const { count, error } = await supabase.from(table).select("invoice_id", { count: "exact", head: true }).in("invoice_id", scopedInvoices.map((row) => row.invoice_id));
+        return { table, count: error ? null : count ?? 0 };
+      }
+      const { count, error } = await supabase.from(table).select("*", { count: "exact", head: true }).eq("company_id", companyId);
+      return { table, count: error ? null : count ?? 0 };
+    }));
+    facts = ["FinCore currently exposes these approved company-scoped datasets:", ...counts.map((item) => `- ${item.table}: ${item.count === null ? "unavailable" : `${item.count} records`}`)].join(NL);
+  } else if (/(how many invoices|number of invoices|invoice count|invoices.*do we have)/.test(lower)) {
+    const { count, error } = await supabase.from("invoices").select("invoice_id", { count: "exact", head: true }).eq("company_id", companyId);
+    if (error) throw error;
+    facts = `Your company currently has ${count ?? 0} invoices in the FinCore Database.`;
+  } else if (/(how much.*spend|spend this month|monthly spend|overview)/.test(lower)) {
     const monthlySpend = rows.filter((row) => String(row.date).startsWith(currentPeriod)).reduce((sum, row) => sum + Number(row.total_amount), 0);
     const { data: budgets, error: budgetError } = await supabase.from("budgets").select("allocated,spent").eq("company_id", companyId).eq("period", currentPeriod);
     if (budgetError) throw budgetError;
