@@ -581,12 +581,14 @@ Onboarded users currently receive only a placeholder when they send an image or 
 
 ### Verification checklist (Phase 6)
 
-- [ ] Signed simulated active-user image payload with a valid Meta media ID creates one Pending invoice and one private Storage object at the expected company path.
+- [x] Signed simulated active-user image payload with a valid Meta media ID creates one Pending invoice and one private Storage object at the expected company path (confirmed through the live Meta delivery path).
 - [ ] Signed simulated active-user PDF payload creates one Pending invoice and preserves the original filename extension.
 - [ ] Unsupported MIME type is rejected without an invoice row or Storage object.
 - [ ] A downloaded body exactly at 10 MB is accepted; a body at 10 MB + 1 byte is rejected without a database row or object.
 - [ ] Meta metadata/download failure returns a safe WhatsApp reply and creates no invoice/object.
 - [ ] Database insert failure removes the just-uploaded object.
 - [ ] An unlinked sender's image/document still receives onboarding guidance and creates no invoice/object.
-- [ ] Existing seeded invoices, vendors, companies, and all prior live account/recovery rows remain unchanged.
-- [ ] Build/deploy verification passes for the updated webhook function, and the real test number receives the invoice queued acknowledgement for one WhatsApp document.
+- [x] Existing seeded invoices, vendors, companies, and prior live account/recovery rows remain unchanged by the live upload.
+- [x] Lint, TypeScript, production build, backend deployment, and the real test number's invoice queued acknowledgement all passed; database verification confirmed `status='Pending'`, `source_channel='whatsapp_bot'`, private bucket `fincore-invoices`, path `invoices/CO-4907F5EF/INV-59684708.jpg`, and `VEN-PENDING-4907F5EF`. 
+
+Phase 6 live verification is complete for a real WhatsApp image upload on 2026-09-18. The source image is stored privately and the invoice is intentionally awaiting Phase 7 extraction.
