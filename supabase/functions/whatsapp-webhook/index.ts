@@ -979,6 +979,57 @@ async function explainFinancialFacts(question: string, facts: string): Promise<s
   }
 }
 
+interface NaturalLanguageIntent {
+  intent: "menu" | "alerts" | "workflow_action" | "forecast" | "qna" | "unknown";
+  action: "approve" | "review" | "defer" | "reject" | null;
+  invoice_id: string | null;
+  alert_id: string | null;
+  horizon_days: 30 | 60 | 90 | null;
+  question: string | null;
+}
+
+function normalizeNaturalLanguageIntent(value: Record<string, unknown>): NaturalLanguageIntent {
+  const allowed = new Set<NaturalLanguageIntent["intent"]>(["menu", "alerts", "workflow_action", "forecast", "qna", "unknown"]);
+  const rawIntent = typeof value.intent === "string" && allowed.has(value.intent as NaturalLanguageIntent["intent"]) ? value.intent as NaturalLanguageIntent["intent"] : "unknown";
+  const rawAction = typeof value.action === "string" && /^(approve|review|defer|reject)$/i.test(value.action) ? value.action.toLowerCase() as NaturalLanguageIntent["action"] : null;
+  const rawHorizon = Number(value.horizon_days);
+  return {
+    intent: rawIntent,
+    action: rawAction,
+    invoice_id: typeof value.invoice_id === "string" && /^INV-[A-Z0-9]+$/i.test(value.invoice_id) ? value.invoice_id.toUpperCase() : null,
+    alert_id: typeof value.alert_id === "string" && /^[0-9a-f-]{8,}$/i.test(value.alert_id) ? value.alert_id : null,
+    horizon_days: rawHorizon === 30 || rawHorizon === 60 || rawHorizon === 90 ? rawHorizon : null,
+    question: typeof value.question === "string" && value.question.trim() ? value.question.trim() : null,
+  };
+}
+
+async function classifyNaturalLanguageCommand(text: string): Promise<NaturalLanguageIntent | null> {
+  if (!AI_API_TOKEN) return null;
+  try {
+    const response = await fetchWithTimeout(`${AI_API_BASE}/code/api/v1/ai/chat/completions`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${AI_API_TOKEN}`, "Content-Type": "application/json", "X-Enter-Project-ID": AI_PROJECT_ID, "X-Session-ID": `intent-${crypto.randomUUID()}` },
+      body: JSON.stringify({
+        model: OCR_MODEL,
+        stream: false,
+        temperature: 0,
+        max_tokens: 220,
+        messages: [
+          { role: "system", content: "Classify the user's finance command. Return JSON only with intent (menu|alerts|workflow_action|forecast|qna|unknown), action (approve|review|defer|reject|null), invoice_id (INV-... or null), alert_id (or null), horizon_days (30|60|90|null), and question (or null). Never invent IDs." },
+          { role: "user", content: text },
+        ],
+      }),
+    });
+    const data = await response.json();
+    const content = data?.choices?.[0]?.message?.content;
+    const parsed = typeof content === "string" ? parseJsonObject(content) : null;
+    return response.ok && parsed ? normalizeNaturalLanguageIntent(parsed) : null;
+  } catch (error) {
+    console.error("whatsapp-webhook: natural-language classifier failed", error instanceof Error ? error.message : error);
+    return null;
+  }
+}
+
 async function answerFinancialQuestion(supabase: SupabaseClient, companyId: string, question: string): Promise<string> {
   const lower = question.toLowerCase();
   const currentPeriod = new Date().toISOString().slice(0, 7);
@@ -1770,7 +1821,22 @@ Deno.serve(async (req) => {
           if (!linkedUser) throw new Error("Linked WhatsApp account has no user record");
           const forecastReply = await handleForecastCommand(supabase, linkedUser.company_id, content);
           const workflowReply = forecastReply ?? await handleWorkflowCommand(supabase, linkedAccount.user_id, linkedUser.company_id, linkedUser.role, content);
-          replyText = workflowReply ?? await answerFinancialQuestion(supabase, linkedUser.company_id, content);
+          if (workflowReply) {
+            replyText = workflowReply;
+          } else {
+            const intent = await classifyNaturalLanguageCommand(content);
+            if (intent?.intent === "alerts") {
+              replyText = await scanCompanyAlerts(supabase, linkedUser.company_id);
+            } else if (intent?.intent === "workflow_action" && intent.action && intent.invoice_id) {
+              replyText = await handleWorkflowCommand(supabase, linkedAccount.user_id, linkedUser.company_id, linkedUser.role, `${intent.action} ${intent.invoice_id}`) ?? "I couldn't interpret that workflow action.";
+            } else if (intent?.intent === "forecast") {
+              replyText = await handleForecastCommand(supabase, linkedUser.company_id, `${intent.horizon_days ?? 30} day forecast`) ?? "I couldn't interpret that forecast request.";
+            } else if (intent?.intent === "menu") {
+              replyText = MENU_TEXT;
+            } else {
+              replyText = await answerFinancialQuestion(supabase, linkedUser.company_id, intent?.question ?? content);
+            }
+          }
         } else {
           replyText = buildReply(messageType, content);
         }

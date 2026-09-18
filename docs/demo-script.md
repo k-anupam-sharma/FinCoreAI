@@ -346,3 +346,19 @@ Verification completed:
 
 The webhook now applies 15-second timeout guards to Meta, Resend, Enter AI, and WhatsApp API calls and returns safe user-facing failures while preserving prior persisted facts.
 
+---
+
+# Natural-language command agent
+
+The active WhatsApp user can phrase commands naturally:
+
+```text
+Show me all open risk alerts
+Please review invoice INV-123
+Defer invoice INV-123 until next week
+Give me the 90-day cash-flow projection
+How much did we spend this month?
+```
+
+Qwen only classifies the request into an allowlisted intent. The existing backend handlers still enforce company scope, role authorization, invoice/alert ownership, and database validation. Invalid or unavailable AI classification falls back to the deterministic handlers.
+

@@ -974,13 +974,13 @@ The current workflow parser recognizes exact forms such as `alerts` and `review 
 
 ### Implementation checklist
 
-- [ ] Add `classifyNaturalLanguageCommand` using Qwen and the fixed JSON intent schema.
-- [ ] Validate classifier output against an allowlist and normalize invoice/alert IDs and forecast horizons.
-- [ ] Run deterministic workflow/forecast handlers before the classifier.
-- [ ] Route `alerts`, `workflow_action`, and `forecast` intents into existing backend handlers; route `qna` into controlled Q&A.
-- [ ] Preserve backend authorization and company-isolation checks for every AI-parsed action.
-- [ ] Return a safe supported-command message for unknown or malformed intents.
-- [ ] Deploy and append general-English examples to the demo script.
+- [x] Add `classifyNaturalLanguageCommand` using Qwen and the fixed JSON intent schema.
+- [x] Validate classifier output against an allowlist and normalize invoice/alert IDs and forecast horizons.
+- [x] Run deterministic workflow/forecast handlers before the classifier.
+- [x] Route `alerts`, `workflow_action`, and `forecast` intents into existing backend handlers; route `qna` into controlled Q&A.
+- [x] Preserve backend authorization and company-isolation checks for every AI-parsed action.
+- [x] Return a safe supported-command message for unknown or malformed intents.
+- [x] Deploy and append general-English examples to the demo script.
 
 ### Verification checklist
 
