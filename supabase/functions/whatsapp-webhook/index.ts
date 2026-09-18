@@ -225,7 +225,7 @@ const MENU_TEXT = [
   "7. Ask FinCore AI",
   "8. Account / Help",
   "",
-  "Full processing for these options is being rolled out phase by phase. Reply with a number to see what's available so far.",
+  "Choose a number, or ask me in plain English. Each option now connects to a live FinCore workflow.",
 ].join(NL);
 
 const GREETING_PATTERN = /^(hi|hello|hey|menu|help)$/i;
