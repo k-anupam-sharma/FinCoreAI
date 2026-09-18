@@ -684,3 +684,49 @@ Phase 7 now extracts invoice facts and validates them, but it does not compare t
 - [ ] `invoice_analysis` remains one row per invoice after Phase 8 enrichment.
 - [ ] The five previously created duplicate invoices remain untouched and are used only as comparison history.
 - [ ] Lint, TypeScript, production build, backend deployment, and one real WhatsApp duplicate/vendor-risk response pass.
+
+---
+
+## Phase 9 — Budget impact + anomaly detection
+
+### Context
+
+Phase 8 now produces duplicate and vendor-risk facts, but it does not show how a new invoice affects the department budget or whether multiple transparent anomaly signals are present. Phase 9 adds deterministic budget projection and anomaly scoring, using the existing `budgets`, invoice history, bank changes, OCR confidence, duplicate score, and vendor history. It persists explainable results without creating an approval decision.
+
+### Design decisions
+
+- **Execution:** run after Phase 8 enrichment for image invoices in the existing webhook path. PDFs remain stored/Pending until extraction.
+- **Budget period:** use the extracted invoice date's `YYYY-MM` and the invoice department. If no matching budget exists, persist `found=false` with a medium-impact default and explicit `Budget not found` warning; never invent an allocation.
+- **Budget math:** `projectedSpent = spent + invoice total`, `projectedRemaining = allocated - projectedSpent`, utilization percentages from allocated, and impact `low`/`medium`/`high` at 70%/95% projected utilization. Reuse the same arithmetic as `src/lib/fincore/budgetImpact.ts`.
+- **Anomaly signals:** port the deterministic signals from `src/lib/fincore/anomaly.ts`: duplicate invoice, vendor spend spike, new-vendor-large-invoice, missing PO high value, recent bank change, round-number pattern, split-invoice suspicion, off-hours submission, low OCR confidence, and abnormal budget impact. Each signal carries a named description and explicit weight; cap total at 100.
+- **Thresholds:** read company-specific rows from `decision_rules_config` when available, otherwise use the established defaults (`budgetReviewThresholdPct=85`, `vendorAmountMultiplierThreshold=3`, `bankChangeLookbackDays=30`, `anomalyReviewThreshold=60`). No decision row is created in Phase 9.
+- **Persistence:** update the existing `invoice_analysis` row with `budget_impact`, `anomaly_score`, and `anomaly_reasons`; leave invoice `status='Pending'`.
+- **User response:** add a final WhatsApp message with projected utilization, anomaly score, and the top one or two signal reasons. Keep OCR, duplicate/vendor, budget, and anomaly stages separate so a later stage failure preserves prior results.
+
+### Files
+
+- `supabase/functions/whatsapp-webhook/index.ts` — budget query, anomaly helpers, thresholds, analysis update, and final WhatsApp summary.
+- `docs/demo-script.md` — Phase 9 examples and boundary cases.
+- `.enter/plans/fincore-ai-architecture.md` — Phase 9 checklist and verification evidence.
+
+### Implementation checklist (Phase 9)
+
+- [ ] Add budget projection arithmetic with explicit no-budget behavior.
+- [ ] Load applicable company thresholds with safe defaults.
+- [ ] Add deterministic anomaly signal helpers and cap the score at 100.
+- [ ] Query same-company nearby invoice history needed for split-invoice and spend-spike signals.
+- [ ] Update the existing `invoice_analysis` row with `budget_impact`, `anomaly_score`, and `anomaly_reasons` without changing invoice status.
+- [ ] Send a final WhatsApp response containing budget utilization and anomaly score/reasons.
+- [ ] Preserve prior OCR, duplicate, and vendor-risk facts if Phase 9 encounters an error.
+- [ ] Deploy and append the Phase 9 demo walkthrough.
+
+### Verification checklist (Phase 9)
+
+- [ ] A matching department/period budget returns correct before/after utilization and remaining amount.
+- [ ] A missing budget returns `found=false` and does not invent allocation or spend.
+- [ ] A high projected utilization triggers the budget anomaly signal with explicit evidence.
+- [ ] A low OCR confidence invoice triggers `low_ocr_confidence_needs_review`.
+- [ ] A recent bank change, duplicate score, large vendor multiplier, or missing high-value PO triggers the corresponding named signal.
+- [ ] Anomaly score is capped at 100 and every persisted signal has a description and weight.
+- [ ] `invoice_analysis` remains one row per invoice and invoice status remains `Pending`.
+- [ ] Lint, TypeScript, production build, backend deployment, and one real WhatsApp budget/anomaly response pass.
