@@ -1,7 +1,9 @@
 {
-  "common.appName": "你的应用名称",
-  "home.hero.title": "欢迎来到你的空白应用",
-  "home.hero.subtitle": "轻松把任何 App 变成你的作品。",
+  "common.appName": "FinCore AI",
+  "home.hero.title": "FinCore AI",
+  "home.hero.subtitle": "可解释的发票智能分析、供应商风险、预算影响、异常检测与现金流预测——通过类 WhatsApp 助手交付。",
+  "home.hero.cta": "体验助手",
+  "home.hero.note": "演示模式——完全在浏览器中运行,使用合成数据。真实的 WhatsApp / Enter Cloud 后端尚未连接。",
   "notFound.title": "哎呀，页面不存在",
   "notFound.actions.backHome": "返回首页"
 }

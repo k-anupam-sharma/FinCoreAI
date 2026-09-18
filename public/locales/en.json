@@ -1,7 +1,9 @@
 {
-  "common.appName": "Your App Name",
-  "home.hero.title": "Welcome to your blank app",
-  "home.hero.subtitle": "Make any App yours with ease.",
+  "common.appName": "FinCore AI",
+  "home.hero.title": "FinCore AI",
+  "home.hero.subtitle": "Explainable invoice intelligence, vendor risk, budget impact, anomaly detection, and cash-flow forecasting — delivered through a WhatsApp-style assistant.",
+  "home.hero.cta": "Try the assistant",
+  "home.hero.note": "Demo mode — running fully in your browser on synthetic data. The real WhatsApp/Enter Cloud backend isn't connected yet.",
   "notFound.title": "Oops! Page not found",
   "notFound.actions.backHome": "Return to Home"
 }

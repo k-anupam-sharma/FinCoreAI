@@ -1,10 +1,11 @@
 -- FinCore AI — Database schema (Phase 1 draft)
 --
--- STATUS: NOT YET APPLIED. Enter Cloud is not provisioned for this project yet.
--- This file is a ready-to-run reference. Once Enter Cloud is enabled, this
--- content will be applied via the `supabase_migration` tool (in reviewable
--- chunks, with RLS verified after creation) rather than by hand-editing
--- migration files. Do not run this file directly against any database.
+-- STATUS: APPLIED. Enter Cloud is provisioned and all 5 migrations have been
+-- applied via the `supabase_migration` tool (schema, seed of
+-- decision_rules_config, RLS on all 24 tables). Seed data was imported
+-- separately from docs/seed-data/*.csv via `supabase_insert`. This file is a
+-- reference snapshot of the live schema; do not run it directly against any
+-- database.
 --
 -- Source of truth for field lists: /.enter/plans/fincore-ai-architecture.md
 

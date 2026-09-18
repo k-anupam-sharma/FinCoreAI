@@ -3360,13 +3360,1065 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      auth_log: {
+        Row: {
+          company_id: string | null
+          device: string | null
+          event_type: string
+          ip_address: string | null
+          log_id: string
+          success: boolean
+          timestamp: string
+          user_id: string | null
+        }
+        Insert: {
+          company_id?: string | null
+          device?: string | null
+          event_type: string
+          ip_address?: string | null
+          log_id: string
+          success: boolean
+          timestamp?: string
+          user_id?: string | null
+        }
+        Update: {
+          company_id?: string | null
+          device?: string | null
+          event_type?: string
+          ip_address?: string | null
+          log_id?: string
+          success?: boolean
+          timestamp?: string
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "auth_log_company_id_fkey"
+            columns: ["company_id"]
+            referencedRelation: "companies"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "auth_log_user_id_fkey"
+            columns: ["user_id"]
+            referencedRelation: "users"
+            referencedColumns: ["user_id"]
+          },
+        ]
+      }
+      auth_methods: {
+        Row: {
+          created_at: string
+          id: string
+          method_type: string
+          user_id: string
+          value: string
+          verified_at: string | null
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          method_type: string
+          user_id: string
+          value: string
+          verified_at?: string | null
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          method_type?: string
+          user_id?: string
+          value?: string
+          verified_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "auth_methods_user_id_fkey"
+            columns: ["user_id"]
+            referencedRelation: "users"
+            referencedColumns: ["user_id"]
+          },
+        ]
+      }
+      budgets: {
+        Row: {
+          allocated: number
+          budget_id: string
+          company_id: string
+          department: string
+          period: string
+          remaining: number
+          spent: number
+        }
+        Insert: {
+          allocated: number
+          budget_id: string
+          company_id: string
+          department: string
+          period: string
+          remaining: number
+          spent?: number
+        }
+        Update: {
+          allocated?: number
+          budget_id?: string
+          company_id?: string
+          department?: string
+          period?: string
+          remaining?: number
+          spent?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "budgets_company_id_fkey"
+            columns: ["company_id"]
+            referencedRelation: "companies"
+            referencedColumns: ["company_id"]
+          },
+        ]
+      }
+      companies: {
+        Row: {
+          company_id: string
+          country: string | null
+          created_at: string
+          industry: string | null
+          name: string
+          plan_tier: string | null
+        }
+        Insert: {
+          company_id: string
+          country?: string | null
+          created_at?: string
+          industry?: string | null
+          name: string
+          plan_tier?: string | null
+        }
+        Update: {
+          company_id?: string
+          country?: string | null
+          created_at?: string
+          industry?: string | null
+          name?: string
+          plan_tier?: string | null
+        }
+        Relationships: []
+      }
+      conversation_messages: {
+        Row: {
+          content: string | null
+          created_at: string
+          direction: string
+          id: string
+          media_url: string | null
+          message_type: string
+          session_id: string
+          wa_message_id: string | null
+        }
+        Insert: {
+          content?: string | null
+          created_at?: string
+          direction: string
+          id?: string
+          media_url?: string | null
+          message_type: string
+          session_id: string
+          wa_message_id?: string | null
+        }
+        Update: {
+          content?: string | null
+          created_at?: string
+          direction?: string
+          id?: string
+          media_url?: string | null
+          message_type?: string
+          session_id?: string
+          wa_message_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "conversation_messages_session_id_fkey"
+            columns: ["session_id"]
+            referencedRelation: "conversation_sessions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      conversation_sessions: {
+        Row: {
+          context: Json
+          expires_at: string | null
+          id: string
+          last_message_at: string
+          state: string
+          user_id: string | null
+          wa_id: string
+        }
+        Insert: {
+          context?: Json
+          expires_at?: string | null
+          id?: string
+          last_message_at?: string
+          state?: string
+          user_id?: string | null
+          wa_id: string
+        }
+        Update: {
+          context?: Json
+          expires_at?: string | null
+          id?: string
+          last_message_at?: string
+          state?: string
+          user_id?: string | null
+          wa_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "conversation_sessions_user_id_fkey"
+            columns: ["user_id"]
+            referencedRelation: "users"
+            referencedColumns: ["user_id"]
+          },
+        ]
+      }
+      dashboard_admins: {
+        Row: {
+          company_id: string
+          created_at: string
+          role: string
+          user_id: string
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          role: string
+          user_id: string
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          role?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "dashboard_admins_company_id_fkey"
+            columns: ["company_id"]
+            referencedRelation: "companies"
+            referencedColumns: ["company_id"]
+          },
+        ]
+      }
+      decision_rules_config: {
+        Row: {
+          company_id: string | null
+          description: string | null
+          id: string
+          rule_key: string
+          threshold_value: number
+          updated_at: string
+        }
+        Insert: {
+          company_id?: string | null
+          description?: string | null
+          id?: string
+          rule_key: string
+          threshold_value: number
+          updated_at?: string
+        }
+        Update: {
+          company_id?: string | null
+          description?: string | null
+          id?: string
+          rule_key?: string
+          threshold_value?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "decision_rules_config_company_id_fkey"
+            columns: ["company_id"]
+            referencedRelation: "companies"
+            referencedColumns: ["company_id"]
+          },
+        ]
+      }
+      decisions: {
+        Row: {
+          company_id: string
+          confidence_score: number | null
+          decided_by: string
+          decision_id: string
+          invoice_id: string
+          reasoning: string | null
+          recommendation: string
+          timestamp: string
+        }
+        Insert: {
+          company_id: string
+          confidence_score?: number | null
+          decided_by?: string
+          decision_id: string
+          invoice_id: string
+          reasoning?: string | null
+          recommendation: string
+          timestamp?: string
+        }
+        Update: {
+          company_id?: string
+          confidence_score?: number | null
+          decided_by?: string
+          decision_id?: string
+          invoice_id?: string
+          reasoning?: string | null
+          recommendation?: string
+          timestamp?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "decisions_company_id_fkey"
+            columns: ["company_id"]
+            referencedRelation: "companies"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "decisions_invoice_id_fkey"
+            columns: ["invoice_id"]
+            referencedRelation: "invoices"
+            referencedColumns: ["invoice_id"]
+          },
+        ]
+      }
+      demo_anomaly_answer_key: {
+        Row: {
+          anomaly_type: string
+          description: string | null
+          id: string
+          related_id: string
+          source_table: string
+        }
+        Insert: {
+          anomaly_type: string
+          description?: string | null
+          id: string
+          related_id: string
+          source_table: string
+        }
+        Update: {
+          anomaly_type?: string
+          description?: string | null
+          id?: string
+          related_id?: string
+          source_table?: string
+        }
+        Relationships: []
+      }
+      forecast_records: {
+        Row: {
+          company_id: string
+          disclaimer: string
+          generated_at: string
+          horizon_days: number
+          id: string
+          projected_cash_position: number | null
+          projected_inflow: number | null
+          projected_net: number | null
+          projected_outflow: number | null
+          top_contributors: Json | null
+        }
+        Insert: {
+          company_id: string
+          disclaimer?: string
+          generated_at?: string
+          horizon_days: number
+          id?: string
+          projected_cash_position?: number | null
+          projected_inflow?: number | null
+          projected_net?: number | null
+          projected_outflow?: number | null
+          top_contributors?: Json | null
+        }
+        Update: {
+          company_id?: string
+          disclaimer?: string
+          generated_at?: string
+          horizon_days?: number
+          id?: string
+          projected_cash_position?: number | null
+          projected_inflow?: number | null
+          projected_net?: number | null
+          projected_outflow?: number | null
+          top_contributors?: Json | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "forecast_records_company_id_fkey"
+            columns: ["company_id"]
+            referencedRelation: "companies"
+            referencedColumns: ["company_id"]
+          },
+        ]
+      }
+      gl_accounts: {
+        Row: {
+          category: string
+          description: string | null
+          gl_code: string
+        }
+        Insert: {
+          category: string
+          description?: string | null
+          gl_code: string
+        }
+        Update: {
+          category?: string
+          description?: string | null
+          gl_code?: string
+        }
+        Relationships: []
+      }
+      invoice_actions: {
+        Row: {
+          action: string
+          company_id: string
+          created_at: string
+          id: string
+          invoice_id: string
+          new_status: string | null
+          performed_by: string | null
+          previous_status: string | null
+          reason: string | null
+        }
+        Insert: {
+          action: string
+          company_id: string
+          created_at?: string
+          id?: string
+          invoice_id: string
+          new_status?: string | null
+          performed_by?: string | null
+          previous_status?: string | null
+          reason?: string | null
+        }
+        Update: {
+          action?: string
+          company_id?: string
+          created_at?: string
+          id?: string
+          invoice_id?: string
+          new_status?: string | null
+          performed_by?: string | null
+          previous_status?: string | null
+          reason?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "invoice_actions_company_id_fkey"
+            columns: ["company_id"]
+            referencedRelation: "companies"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "invoice_actions_invoice_id_fkey"
+            columns: ["invoice_id"]
+            referencedRelation: "invoices"
+            referencedColumns: ["invoice_id"]
+          },
+          {
+            foreignKeyName: "invoice_actions_performed_by_fkey"
+            columns: ["performed_by"]
+            referencedRelation: "users"
+            referencedColumns: ["user_id"]
+          },
+        ]
+      }
+      invoice_analysis: {
+        Row: {
+          anomaly_reasons: Json | null
+          anomaly_score: number | null
+          budget_impact: Json | null
+          created_at: string
+          duplicate_evidence: Json | null
+          duplicate_score: number | null
+          extracted_fields: Json | null
+          id: string
+          invoice_id: string
+          validation_result: Json | null
+          vendor_risk_snapshot: Json | null
+        }
+        Insert: {
+          anomaly_reasons?: Json | null
+          anomaly_score?: number | null
+          budget_impact?: Json | null
+          created_at?: string
+          duplicate_evidence?: Json | null
+          duplicate_score?: number | null
+          extracted_fields?: Json | null
+          id?: string
+          invoice_id: string
+          validation_result?: Json | null
+          vendor_risk_snapshot?: Json | null
+        }
+        Update: {
+          anomaly_reasons?: Json | null
+          anomaly_score?: number | null
+          budget_impact?: Json | null
+          created_at?: string
+          duplicate_evidence?: Json | null
+          duplicate_score?: number | null
+          extracted_fields?: Json | null
+          id?: string
+          invoice_id?: string
+          validation_result?: Json | null
+          vendor_risk_snapshot?: Json | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "invoice_analysis_invoice_id_fkey"
+            columns: ["invoice_id"]
+            referencedRelation: "invoices"
+            referencedColumns: ["invoice_id"]
+          },
+        ]
+      }
+      invoice_items: {
+        Row: {
+          amount: number | null
+          description: string | null
+          gl_account: string | null
+          id: string
+          invoice_id: string
+          line_no: number
+          quantity: number | null
+          unit_price: number | null
+        }
+        Insert: {
+          amount?: number | null
+          description?: string | null
+          gl_account?: string | null
+          id?: string
+          invoice_id: string
+          line_no: number
+          quantity?: number | null
+          unit_price?: number | null
+        }
+        Update: {
+          amount?: number | null
+          description?: string | null
+          gl_account?: string | null
+          id?: string
+          invoice_id?: string
+          line_no?: number
+          quantity?: number | null
+          unit_price?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "invoice_items_gl_account_fkey"
+            columns: ["gl_account"]
+            referencedRelation: "gl_accounts"
+            referencedColumns: ["gl_code"]
+          },
+          {
+            foreignKeyName: "invoice_items_invoice_id_fkey"
+            columns: ["invoice_id"]
+            referencedRelation: "invoices"
+            referencedColumns: ["invoice_id"]
+          },
+        ]
+      }
+      invoices: {
+        Row: {
+          company_id: string
+          contract_id: string | null
+          currency: string
+          date: string
+          department: string | null
+          due_date: string | null
+          file_storage_path: string | null
+          gl_account: string | null
+          invoice_id: string
+          is_recurring: boolean
+          notes: string | null
+          ocr_confidence: number | null
+          payment_terms: string | null
+          po_number: string | null
+          source_channel: string | null
+          status: string
+          submitted_at: string | null
+          submitted_by: string | null
+          subtotal: number
+          tax_amount: number
+          total_amount: number
+          vendor_id: string
+        }
+        Insert: {
+          company_id: string
+          contract_id?: string | null
+          currency?: string
+          date: string
+          department?: string | null
+          due_date?: string | null
+          file_storage_path?: string | null
+          gl_account?: string | null
+          invoice_id: string
+          is_recurring?: boolean
+          notes?: string | null
+          ocr_confidence?: number | null
+          payment_terms?: string | null
+          po_number?: string | null
+          source_channel?: string | null
+          status?: string
+          submitted_at?: string | null
+          submitted_by?: string | null
+          subtotal: number
+          tax_amount?: number
+          total_amount: number
+          vendor_id: string
+        }
+        Update: {
+          company_id?: string
+          contract_id?: string | null
+          currency?: string
+          date?: string
+          department?: string | null
+          due_date?: string | null
+          file_storage_path?: string | null
+          gl_account?: string | null
+          invoice_id?: string
+          is_recurring?: boolean
+          notes?: string | null
+          ocr_confidence?: number | null
+          payment_terms?: string | null
+          po_number?: string | null
+          source_channel?: string | null
+          status?: string
+          submitted_at?: string | null
+          submitted_by?: string | null
+          subtotal?: number
+          tax_amount?: number
+          total_amount?: number
+          vendor_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "invoices_company_id_fkey"
+            columns: ["company_id"]
+            referencedRelation: "companies"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "invoices_gl_account_fkey"
+            columns: ["gl_account"]
+            referencedRelation: "gl_accounts"
+            referencedColumns: ["gl_code"]
+          },
+          {
+            foreignKeyName: "invoices_submitted_by_fkey"
+            columns: ["submitted_by"]
+            referencedRelation: "users"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "invoices_vendor_id_fkey"
+            columns: ["vendor_id"]
+            referencedRelation: "vendors"
+            referencedColumns: ["vendor_id"]
+          },
+        ]
+      }
+      otp_sessions: {
+        Row: {
+          attempt_count: number
+          channel: string
+          created_at: string
+          destination: string
+          expires_at: string
+          id: string
+          max_attempts: number
+          otp_hash: string
+          purpose: string
+          requester_phone: string | null
+          status: string
+          user_id: string | null
+        }
+        Insert: {
+          attempt_count?: number
+          channel?: string
+          created_at?: string
+          destination: string
+          expires_at: string
+          id?: string
+          max_attempts?: number
+          otp_hash: string
+          purpose: string
+          requester_phone?: string | null
+          status?: string
+          user_id?: string | null
+        }
+        Update: {
+          attempt_count?: number
+          channel?: string
+          created_at?: string
+          destination?: string
+          expires_at?: string
+          id?: string
+          max_attempts?: number
+          otp_hash?: string
+          purpose?: string
+          requester_phone?: string | null
+          status?: string
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "otp_sessions_user_id_fkey"
+            columns: ["user_id"]
+            referencedRelation: "users"
+            referencedColumns: ["user_id"]
+          },
+        ]
+      }
+      payments: {
+        Row: {
+          amount: number
+          bank_reference: string | null
+          company_id: string
+          invoice_id: string
+          payment_date: string | null
+          payment_id: string
+          payment_method: string | null
+          status: string
+        }
+        Insert: {
+          amount: number
+          bank_reference?: string | null
+          company_id: string
+          invoice_id: string
+          payment_date?: string | null
+          payment_id: string
+          payment_method?: string | null
+          status: string
+        }
+        Update: {
+          amount?: number
+          bank_reference?: string | null
+          company_id?: string
+          invoice_id?: string
+          payment_date?: string | null
+          payment_id?: string
+          payment_method?: string | null
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "payments_company_id_fkey"
+            columns: ["company_id"]
+            referencedRelation: "companies"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "payments_invoice_id_fkey"
+            columns: ["invoice_id"]
+            referencedRelation: "invoices"
+            referencedColumns: ["invoice_id"]
+          },
+        ]
+      }
+      risk_alerts: {
+        Row: {
+          alert_type: string
+          company_id: string
+          created_at: string
+          id: string
+          message: string
+          related_invoice_id: string | null
+          related_vendor_id: string | null
+          resolved_at: string | null
+          resolved_by: string | null
+          severity: string
+          status: string
+        }
+        Insert: {
+          alert_type: string
+          company_id: string
+          created_at?: string
+          id?: string
+          message: string
+          related_invoice_id?: string | null
+          related_vendor_id?: string | null
+          resolved_at?: string | null
+          resolved_by?: string | null
+          severity: string
+          status?: string
+        }
+        Update: {
+          alert_type?: string
+          company_id?: string
+          created_at?: string
+          id?: string
+          message?: string
+          related_invoice_id?: string | null
+          related_vendor_id?: string | null
+          resolved_at?: string | null
+          resolved_by?: string | null
+          severity?: string
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "risk_alerts_company_id_fkey"
+            columns: ["company_id"]
+            referencedRelation: "companies"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "risk_alerts_related_invoice_id_fkey"
+            columns: ["related_invoice_id"]
+            referencedRelation: "invoices"
+            referencedColumns: ["invoice_id"]
+          },
+          {
+            foreignKeyName: "risk_alerts_related_vendor_id_fkey"
+            columns: ["related_vendor_id"]
+            referencedRelation: "vendors"
+            referencedColumns: ["vendor_id"]
+          },
+          {
+            foreignKeyName: "risk_alerts_resolved_by_fkey"
+            columns: ["resolved_by"]
+            referencedRelation: "users"
+            referencedColumns: ["user_id"]
+          },
+        ]
+      }
+      transactions: {
+        Row: {
+          amount: number
+          category: string
+          company_id: string
+          date: string
+          transaction_id: string
+          type: string
+        }
+        Insert: {
+          amount: number
+          category: string
+          company_id: string
+          date: string
+          transaction_id: string
+          type: string
+        }
+        Update: {
+          amount?: number
+          category?: string
+          company_id?: string
+          date?: string
+          transaction_id?: string
+          type?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "transactions_company_id_fkey"
+            columns: ["company_id"]
+            referencedRelation: "companies"
+            referencedColumns: ["company_id"]
+          },
+        ]
+      }
+      users: {
+        Row: {
+          account_status: string
+          company_id: string
+          created_at: string
+          email: string
+          failed_login_attempts: number
+          last_login_at: string | null
+          legacy_password_hash: string | null
+          mfa_enabled: boolean
+          name: string
+          role: string
+          user_id: string
+        }
+        Insert: {
+          account_status?: string
+          company_id: string
+          created_at?: string
+          email: string
+          failed_login_attempts?: number
+          last_login_at?: string | null
+          legacy_password_hash?: string | null
+          mfa_enabled?: boolean
+          name: string
+          role: string
+          user_id: string
+        }
+        Update: {
+          account_status?: string
+          company_id?: string
+          created_at?: string
+          email?: string
+          failed_login_attempts?: number
+          last_login_at?: string | null
+          legacy_password_hash?: string | null
+          mfa_enabled?: boolean
+          name?: string
+          role?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "users_company_id_fkey"
+            columns: ["company_id"]
+            referencedRelation: "companies"
+            referencedColumns: ["company_id"]
+          },
+        ]
+      }
+      vendor_bank_changes: {
+        Row: {
+          change_id: string
+          changed_at: string
+          changed_by: string | null
+          company_id: string
+          new_account_number: string | null
+          new_bank_name: string | null
+          old_account_number: string | null
+          old_bank_name: string | null
+          vendor_id: string
+        }
+        Insert: {
+          change_id: string
+          changed_at: string
+          changed_by?: string | null
+          company_id: string
+          new_account_number?: string | null
+          new_bank_name?: string | null
+          old_account_number?: string | null
+          old_bank_name?: string | null
+          vendor_id: string
+        }
+        Update: {
+          change_id?: string
+          changed_at?: string
+          changed_by?: string | null
+          company_id?: string
+          new_account_number?: string | null
+          new_bank_name?: string | null
+          old_account_number?: string | null
+          old_bank_name?: string | null
+          vendor_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "vendor_bank_changes_company_id_fkey"
+            columns: ["company_id"]
+            referencedRelation: "companies"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "vendor_bank_changes_vendor_id_fkey"
+            columns: ["vendor_id"]
+            referencedRelation: "vendors"
+            referencedColumns: ["vendor_id"]
+          },
+        ]
+      }
+      vendors: {
+        Row: {
+          bank_account_number: string | null
+          bank_name: string | null
+          category: string | null
+          company_id: string
+          name: string
+          onboarded_date: string | null
+          risk_profile: string | null
+          status: string
+          tax_id: string | null
+          vendor_id: string
+        }
+        Insert: {
+          bank_account_number?: string | null
+          bank_name?: string | null
+          category?: string | null
+          company_id: string
+          name: string
+          onboarded_date?: string | null
+          risk_profile?: string | null
+          status?: string
+          tax_id?: string | null
+          vendor_id: string
+        }
+        Update: {
+          bank_account_number?: string | null
+          bank_name?: string | null
+          category?: string | null
+          company_id?: string
+          name?: string
+          onboarded_date?: string | null
+          risk_profile?: string | null
+          status?: string
+          tax_id?: string | null
+          vendor_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "vendors_company_id_fkey"
+            columns: ["company_id"]
+            referencedRelation: "companies"
+            referencedColumns: ["company_id"]
+          },
+        ]
+      }
+      whatsapp_accounts: {
+        Row: {
+          display_name: string | null
+          id: string
+          last_inbound_at: string | null
+          linked_at: string
+          phone_number: string
+          status: string
+          user_id: string | null
+          wa_id: string | null
+        }
+        Insert: {
+          display_name?: string | null
+          id?: string
+          last_inbound_at?: string | null
+          linked_at?: string
+          phone_number: string
+          status?: string
+          user_id?: string | null
+          wa_id?: string | null
+        }
+        Update: {
+          display_name?: string | null
+          id?: string
+          last_inbound_at?: string | null
+          linked_at?: string
+          phone_number?: string
+          status?: string
+          user_id?: string | null
+          wa_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "whatsapp_accounts_user_id_fkey"
+            columns: ["user_id"]
+            referencedRelation: "users"
+            referencedColumns: ["user_id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      current_dashboard_company_id: {
+        Args: Record<PropertyKey, never>
+        Returns: string
+      }
     }
     Enums: {
       [_ in never]: never

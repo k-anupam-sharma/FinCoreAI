@@ -33,4 +33,4 @@ Source: `datasets.zip` (attached by the user), staged in this repo at `docs/seed
 
 ## Status
 
-Not yet imported — pending Enter Cloud provisioning. Once Enter Cloud is enabled: run `docs/database-schema.sql` via the `supabase_migration` tool (in reviewable chunks), verify RLS with `supabase_get_table_schema`, then import each CSV above via `supabase_insert` in the order listed, and verify row counts match the source files.
+All CSVs imported (2026-09-18) via `supabase_insert` using `scripts/seed-sql.mjs`, in the FK-safe order listed above. `invoice_items` remains empty by design. Verified row counts match the source files.

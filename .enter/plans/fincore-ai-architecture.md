@@ -336,3 +336,16 @@ Each milestone is implemented, verified, and explained before the next starts �
 - [ ] Row counts per table match the corresponding CSV row counts exactly.
 - [ ] Spot-check: an invoice's `vendor_id`/`company_id` join resolves to the correct vendor/company name from the CSVs.
 - [ ] `decision_rules_config` has at least one default row per threshold key referenced in the decision engine design (duplicate, budget, anomaly, vendor-risk).
+
+---
+
+## Interim workaround shipped while Enter Cloud is unavailable
+
+Enter Cloud provisioning is still failing (`Enter Cloud failed to start`) as of this update. Per the user's direction, the deterministic financial engine and a dedicated WhatsApp-styled chatbot were built as a fully client-side stopgap, so the product is demonstrable now and the real backend can be dropped in later with minimal rework:
+
+- **`src/lib/fincore/*`** — pure TypeScript, framework-agnostic: `validation.ts`, `duplicate.ts`, `vendorRisk.ts`, `budgetImpact.ts`, `anomaly.ts`, `decisionEngine.ts`, `forecast.ts`, `explain.ts`, `pipeline.ts`, `queries.ts` (rule-based NL Q&A router), `conversation.ts` (the bot's state machine), `session.ts`, `thresholds.ts`. These are the same functions a real backend function would import — only the data access needs to change later.
+- **`src/data/fincoreStore.ts`** — stands in for the database: loads `src/data/seed/*.json` (converted from `docs/seed-data/*.csv`) and layers session-created records on top, persisted to `localStorage`.
+- **`src/components/whatsapp/*` + `src/pages/Assistant.tsx`** (route `/assistant`) — the dedicated chat UI, WhatsApp-styled via new `whatsapp`/`chat`/`risk`/`decision` design tokens in `index.css`/`tailwind.config.ts`.
+- **`src/lib/fincore/__tests__/*.test.ts`** (Vitest, `pnpm test`) — 35 tests, several run against the real labeled dataset (`demo_anomaly_answer_key`, a known vendor bank-change, a known duplicate-invoice pair).
+
+**Explicitly not real yet, and clearly labeled as such in the UI:** no real WhatsApp/Meta connection (browser chat only), no database (localStorage only, per-browser), no OCR/AI (new invoices are entered via guided prompts, not scanned; explanations are templated, not LLM-generated), no real OTP email delivery (demo code is shown inline in the chat). All of this remains blocked on Enter Cloud (+ AI Capability) and is unchanged from the rest of this plan — resume there once Enter Cloud provisions successfully.

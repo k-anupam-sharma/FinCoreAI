@@ -80,11 +80,11 @@ const companies: Company[] = [...(companiesSeed as Company[]), ...overlay.compan
 const users: FinUser[] = [...(usersSeed as unknown as FinUser[]), ...overlay.users];
 const vendors: Vendor[] = vendorsSeed as unknown as Vendor[];
 const vendorBankChanges: VendorBankChange[] = vendorBankChangesSeed as unknown as VendorBankChange[];
-const glAccounts: GlAccount[] = (glAccountsSeed as any[]).map((g) => ({ ...g, gl_code: String(g.gl_code) }));
+const glAccounts: GlAccount[] = (glAccountsSeed as Array<Record<string, unknown>>).map((g) => ({ ...g, gl_code: String(g.gl_code) })) as GlAccount[];
 const invoices: Invoice[] = [
-  ...(invoicesSeed as any[]).map((i) => ({ ...i, gl_account: String(i.gl_account) })),
+  ...(invoicesSeed as Array<Record<string, unknown>>).map((i) => ({ ...i, gl_account: String(i.gl_account) })),
   ...overlay.invoices,
-] as Invoice[];
+] as unknown as Invoice[];
 const payments: Payment[] = paymentsSeed as unknown as Payment[];
 const budgets: Budget[] = budgetsSeed as unknown as Budget[];
 const transactions: Transaction[] = transactionsSeed as unknown as Transaction[];
