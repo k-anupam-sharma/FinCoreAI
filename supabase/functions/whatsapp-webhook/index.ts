@@ -1087,6 +1087,18 @@ Deno.serve(async (req) => {
         if (!ingestResult.success) {
           replyText = ingestResult.errorMessage;
         } else if (ingestResult.invoiceId && ingestResult.storagePath && ingestResult.mimeType) {
+          const interimReply = "OCR output will be ready shortly.";
+          const { error: interimInsertError } = await supabase.from("conversation_messages").insert({
+            session_id: sessionId,
+            direction: "outbound",
+            message_type: "text",
+            content: interimReply,
+          });
+          if (interimInsertError) throw interimInsertError;
+          const interimSendResult = await sendWhatsAppText(waId, interimReply, ACCESS_TOKEN, PHONE_NUMBER_ID);
+          if (!interimSendResult.success) {
+            console.error(`whatsapp-webhook: failed to send OCR interim reply to ${waId}: ${interimSendResult.error}`);
+          }
           const analysisResult = await analyzeStoredInvoice(
             supabase,
             ingestResult.invoiceId,
