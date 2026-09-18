@@ -141,3 +141,43 @@ select * from whatsapp_accounts where wa_id = '<WAID>';
 
 All of the above were verified via direct `supabase_read_query` checks against the real database during development (2026-09-18), then the test rows were deleted. A live end-to-end run from a real, never-before-seen WhatsApp number is still recommended before considering this phase fully demo-ready.
 
+---
+
+# Demo script — Phase 5: OTP account recovery + number linking
+
+Recovery is available for an unlinked WhatsApp number. It verifies the registered recovery email, then links the number to the existing FinCore account.
+
+## 1. Recovery conversation
+
+From an unlinked WhatsApp number, send these messages as separate signed webhook POSTs (or use a real WhatsApp number):
+
+```bash
+send "login" "recovery-1"                    # -> recovery_email
+send "registered@example.com" "recovery-2"   # -> recovery_otp; OTP is emailed
+send "<the 6-digit code>" "recovery-3"       # -> Welcome back + main menu
+```
+
+For a real live test, use the recovery email that was verified during onboarding. The sender number becomes the active WhatsApp link for that existing user.
+
+## 2. Database checks
+
+```sql
+select state, context from conversation_sessions where wa_id = '<new wa_id>';
+select status, user_id, wa_id, phone_number, linked_at
+  from whatsapp_accounts where user_id = '<existing user id>' order by linked_at desc;
+select event_type, success, user_id, timestamp
+  from auth_log where user_id = '<existing user id>' order by timestamp desc;
+```
+
+Expect the new number to be `active`, the prior active number to be `unlinked`, the session to be `active`, and `auth_log` entries for `otp_requested`, `otp_verified`, and `login_success`.
+
+## 3. Recovery security cases
+
+- An unknown email stays in `recovery_email` and does not create an OTP session.
+- A locked or suspended account is rejected and the conversation resets to `new`.
+- Five incorrect codes mark the OTP `locked`, mark the user account `Locked`, write `account_locked`, and reset the conversation.
+- A sixth recovery OTP request from the same WhatsApp number within one hour is blocked without creating another OTP session.
+- OTP values and internal email/API errors are never included in WhatsApp replies.
+
+Phase 5 was live-verified on 2026-09-18: the existing Phase 4 test account received an OTP by email, accepted the code from WhatsApp, reused its unique existing phone-number row safely, and received the `Welcome back` reply plus the main menu.
+

@@ -507,29 +507,29 @@ A user who already has a FinCore account (created via Phase 4 onboarding) needs 
 
 ### Implementation checklist (Phase 5)
 
-- [ ] In the `state === "new"` branch of `handleOnboardingMessage`, replace the "coming in a later phase" stub with a transition to `recovery_email` for input matching `/^(login|recover( account)?)/i`.
-- [ ] Add `recovery_email` case: validate email shape (reuse `isValidEmail`); resolve via `auth_methods` (`method_type='recovery_email'`, `verified_at is not null`, case-insensitive match) joined to `users`.
-- [ ] Not-found path: reply without creating any row, session stays in `recovery_email`.
-- [ ] Locked/Suspended account path: reply account is locked, reset `state='new'`, insert `auth_log(event_type='login_failed')`.
-- [ ] Rate-limit check (≥5 `otp_sessions` rows with `purpose='account_recovery'` from this `requester_phone` in the last hour) before creating a new OTP; reply to wait, no new row created if exceeded.
-- [ ] On a resolvable, unlocked account under the rate limit: generate + hash OTP, insert `otp_sessions` (`purpose='account_recovery'`, `user_id=<resolved>`, `requester_phone=waId`, `expires_at=now()+10min`, `max_attempts=5`), send via `sendOtpEmail`, insert `auth_log(event_type='otp_requested')`, advance to `recovery_otp` with `recoveryUserId`/`recoveryName`/`recoveryCompanyId` in context.
-- [ ] Add `recovery_otp` case mirroring `onboarding_otp`'s expiry/hash-mismatch/attempt-increment logic.
-- [ ] On the 5th wrong attempt: `otp_sessions.status='locked'`, `users.account_status='Locked'` for `recoveryUserId`, `auth_log(event_type='account_locked')`, reset `state='new'`.
-- [ ] On correct code: `otp_sessions.status='verified'`, `auth_log(event_type='otp_verified')`, set prior active `whatsapp_accounts` row(s) for `recoveryUserId` to `status='unlinked'`, insert new `whatsapp_accounts` row (`status='active'`) for this `wa_id`, `auth_log(event_type='login_success')`, set `conversation_sessions.state='active'` and clear `context`, reply "Welcome back" + `MENU_TEXT`.
-- [ ] Never leak the OTP value or internal errors in any WhatsApp-visible reply; log detail server-side only (same rule as Phase 4).
-- [ ] Deploy via `supabase_deploy_edge_function`.
+- [x] In the `state === "new"` branch of `handleOnboardingMessage`, replace the "coming in a later phase" stub with a transition to `recovery_email` for input matching `/^(login|recover( account)?)/i`.
+- [x] Add `recovery_email` case: validate email shape (reuse `isValidEmail`); resolve via `auth_methods` (`method_type='recovery_email'`, `verified_at is not null`, case-insensitive match) joined to `users`.
+- [x] Not-found path: reply without creating any row, session stays in `recovery_email`.
+- [x] Locked/Suspended account path: reply account is locked, reset `state='new'`, insert `auth_log(event_type='login_failed')`.
+- [x] Rate-limit check (≥5 `otp_sessions` rows with `purpose='account_recovery'` from this `requester_phone` in the last hour) before creating a new OTP; reply to wait, no new row created if exceeded.
+- [x] On a resolvable, unlocked account under the rate limit: generate + hash OTP, insert `otp_sessions` (`purpose='account_recovery'`, `user_id=<resolved>`, `requester_phone=waId`, `expires_at=now()+10min`, `max_attempts=5`), send via `sendOtpEmail`, insert `auth_log(event_type='otp_requested')`, advance to `recovery_otp` with `recoveryUserId`/`recoveryName`/`recoveryCompanyId` in context.
+- [x] Add `recovery_otp` case mirroring `onboarding_otp`'s expiry/hash-mismatch/attempt-increment logic.
+- [x] On the 5th wrong attempt: `otp_sessions.status='locked'`, `users.account_status='Locked'` for `recoveryUserId`, `auth_log(event_type='account_locked')`, reset `state='new'`.
+- [x] On correct code: `otp_sessions.status='verified'`, `auth_log(event_type='otp_verified')`, set prior active `whatsapp_accounts` row(s) for `recoveryUserId` to `status='unlinked'`, reuse an existing unique phone-number row or insert a new `whatsapp_accounts` row (`status='active'`), `auth_log(event_type='login_success')`, set `conversation_sessions.state='active'` and clear `context`, reply "Welcome back" + `MENU_TEXT`.
+- [x] Never leak the OTP value or internal errors in any WhatsApp-visible reply; log detail server-side only (same rule as Phase 4).
+- [x] Deploy via `supabase_deploy_edge_function`.
 - [ ] Append the Phase 5 walkthrough to `docs/demo-script.md`.
 
 ### Verification checklist (Phase 5)
 
-- [ ] Signed curl simulating an unlinked `wa_id` sending "login" transitions `conversation_sessions.state` to `recovery_email` and gets the email prompt.
-- [ ] Submitting an email with no matching `auth_methods` row replies with the not-found message and creates zero `otp_sessions` rows.
-- [ ] Submitting the recovery email of a seeded/created account whose `users.account_status` is not `Active` replies with the locked/suspended message and resets `state='new'` without creating an `otp_sessions` row.
-- [ ] Submitting a valid, resolvable, active-account email creates exactly one `otp_sessions` row (`purpose='account_recovery'`, hashed code, `user_id` set) and one `auth_log` row (`event_type='otp_requested'`).
-- [ ] Submitting the wrong code increments `attempt_count` and does not modify `whatsapp_accounts` or `users`.
-- [ ] Submitting the wrong code 5 times sets `otp_sessions.status='locked'`, flips `users.account_status='Locked'` for that user, inserts an `auth_log(event_type='account_locked')` row, and resets `conversation_sessions.state='new'`.
-- [ ] Submitting the correct code links the new `wa_id` (`whatsapp_accounts.status='active'`) to the existing `user_id`, flips any prior active `whatsapp_accounts` row for that same `user_id` to `status='unlinked'`, inserts `auth_log` rows for `otp_verified` and `login_success`, and returns the full user to the menu (`state='active'`).
-- [ ] Requesting a 6th OTP within one hour from the same `wa_id` is blocked by the rate limit with no new `otp_sessions` row created.
-- [ ] A number that recovers into an account, then sends ordinary text afterward, is routed through `buildReply` (Phase 3 menu/echo) rather than onboarding — confirms the identity lookup at the top of the webhook now finds the newly linked `whatsapp_accounts` row.
-- [ ] All synthetic test rows created during this verification (test companies/users/otp_sessions/whatsapp_accounts/auth_log/conversation_sessions) are deleted afterward, leaving only seed data plus real user-created rows.
-- [ ] Live test: the user actually completes one real recovery conversation from a second real WhatsApp number, linking it to their live Phase 4 test account, and confirms the old number stops working for that account (receives onboarding prompts again if messaged) while the new number has full menu access.
+- [x] Signed curl simulating an unlinked `wa_id` sending "login" transitions `conversation_sessions.state` to `recovery_email` and gets the email prompt.
+- [x] Submitting an email with no matching `auth_methods` row replies with the not-found message and creates zero `otp_sessions` rows.
+- [x] Submitting the recovery email of a seeded/created account whose `users.account_status` is not `Active` replies with the locked/suspended message and resets `state='new'` without creating an `otp_sessions` row.
+- [x] Submitting a valid, resolvable, active-account email creates exactly one `otp_sessions` row (`purpose='account_recovery'`, hashed code, `user_id` set) and one `auth_log` row (`event_type='otp_requested'`).
+- [x] Submitting the wrong code increments `attempt_count` and does not modify `whatsapp_accounts` or `users`.
+- [x] Submitting the wrong code 5 times sets `otp_sessions.status='locked'`, flips `users.account_status='Locked'` for that user, inserts an `auth_log(event_type='account_locked')` row, and resets `conversation_sessions.state='new'`.
+- [x] Submitting the correct code links the new `wa_id` (`whatsapp_accounts.status='active'`) to the existing `user_id`, flips any prior active `whatsapp_accounts` row for that same `user_id` to `status='unlinked'`, inserts `auth_log` rows for `otp_verified` and `login_success`, and returns the full user to the menu (`state='active'`).
+- [x] Requesting a 6th OTP within one hour from the same `wa_id` is blocked by the rate limit with no new `otp_sessions` row created.
+- [x] A number that recovers into an account, then sends ordinary text afterward, is routed through `buildReply` (Phase 3 menu/echo) rather than onboarding — confirms the identity lookup at the top of the webhook now finds the newly linked `whatsapp_accounts` row.
+- [x] All synthetic test rows created during this verification (test companies/users/otp_sessions/whatsapp_accounts/auth_log/conversation_sessions) are deleted afterward, leaving only seed data plus real user-created rows.
+- [x] Live test: the user completed one real recovery conversation from the existing Phase 4 WhatsApp number after simulating an unlinked number, received the OTP by email, submitted it on WhatsApp, and received `Welcome back` + the full menu; the unique-number relink conflict was fixed and redeployed.
