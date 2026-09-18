@@ -1024,6 +1024,86 @@ async function answerFinancialQuestion(supabase: SupabaseClient, companyId: stri
   return explainFinancialFacts(question, facts);
 }
 
+const WORKFLOW_ROLES = new Set(["admin", "finance_manager", "department_head"]);
+
+async function scanCompanyAlerts(supabase: SupabaseClient, companyId: string): Promise<string> {
+  const { data: invoices, error: invoiceError } = await supabase.from("invoices").select("invoice_id,vendor_id,status").eq("company_id", companyId).in("status", ["Pending", "Overdue"]);
+  if (invoiceError) throw invoiceError;
+  const invoiceIds = (invoices ?? []).map((invoice) => invoice.invoice_id);
+  if (!invoiceIds.length) return "No pending invoices currently need attention.";
+  const { data: analyses, error: analysisError } = await supabase.from("invoice_analysis").select("invoice_id,duplicate_score,vendor_risk_snapshot,anomaly_score").in("invoice_id", invoiceIds);
+  if (analysisError) throw analysisError;
+  const { data: decisions, error: decisionError } = await supabase.from("decisions").select("invoice_id,recommendation,reasoning").in("invoice_id", invoiceIds);
+  if (decisionError) throw decisionError;
+  const analysisById = new Map((analyses ?? []).map((row) => [row.invoice_id, row]));
+  const decisionById = new Map((decisions ?? []).map((row) => [row.invoice_id, row]));
+  const candidates = (invoices ?? []).map((invoice) => {
+    const analysis = analysisById.get(invoice.invoice_id);
+    const decision = decisionById.get(invoice.invoice_id);
+    const risk = (analysis?.vendor_risk_snapshot ?? {}) as Record<string, unknown>;
+    const score = Number(analysis?.anomaly_score ?? 0);
+    const severity = decision?.recommendation === "Reject" || String(risk.computed_risk) === "High" || score >= 85 ? "high" : decision?.recommendation === "Flag for Review" || Number(analysis?.duplicate_score ?? 0) >= 70 || score >= 60 ? "medium" : null;
+    return { invoice, analysis, decision, risk, score, severity };
+  }).filter((item) => item.severity);
+  if (!candidates.length) return "No open risk alerts found.";
+  for (const item of candidates) {
+    const alertType = item.decision?.recommendation === "Reject" ? "decision_reject" : Number(item.analysis?.duplicate_score ?? 0) >= 70 ? "duplicate_invoice" : "invoice_anomaly";
+    const { data: existing, error: existingError } = await supabase.from("risk_alerts").select("id").eq("company_id", companyId).eq("related_invoice_id", item.invoice.invoice_id).eq("alert_type", alertType).eq("status", "open").maybeSingle();
+    if (existingError) throw existingError;
+    if (!existing) {
+      const { error: insertError } = await supabase.from("risk_alerts").insert({
+        company_id: companyId,
+        alert_type: alertType,
+        severity: item.severity,
+        related_invoice_id: item.invoice.invoice_id,
+        related_vendor_id: item.invoice.vendor_id,
+        message: item.decision?.reasoning ?? `Anomaly score ${item.score}/100`,
+        status: "open",
+      });
+      if (insertError) throw insertError;
+    }
+  }
+  const ordered = candidates.sort((a, b) => ({ high: 3, medium: 2, low: 1 }[b.severity!] - ({ high: 3, medium: 2, low: 1 }[a.severity!] as number))).slice(0, 5);
+  return ["Open risk alerts:", ...ordered.map((item) => `- ${item.invoice.invoice_id}: ${item.severity} — ${item.decision?.reasoning ?? `Anomaly ${item.score}/100`}`)].join(NL);
+}
+
+async function handleWorkflowCommand(supabase: SupabaseClient, userId: string, companyId: string, role: string, text: string): Promise<string | null> {
+  const lower = text.trim().toLowerCase();
+  if (lower === "alerts" || lower === "risk alerts") return scanCompanyAlerts(supabase, companyId);
+  const resolveMatch = lower.match(/^resolve alert ([0-9a-f-]+)$/i);
+  if (resolveMatch) {
+    if (!WORKFLOW_ROLES.has(role)) return "You do not have permission to resolve alerts.";
+    const { data: alert, error: alertError } = await supabase.from("risk_alerts").select("id").eq("id", resolveMatch[1]).eq("company_id", companyId).eq("status", "open").maybeSingle();
+    if (alertError) throw alertError;
+    if (!alert) return "That alert was not found for your company or is already resolved.";
+    const { error: updateError } = await supabase.from("risk_alerts").update({ status: "resolved", resolved_at: new Date().toISOString(), resolved_by: userId }).eq("id", alert.id).eq("company_id", companyId);
+    if (updateError) throw updateError;
+    return `Alert ${alert.id} resolved.`;
+  }
+  const actionMatch = lower.match(/^(approve|review|defer|reject)\s+(inv-[a-z0-9]+)$/i);
+  if (!actionMatch) return null;
+  if (!WORKFLOW_ROLES.has(role)) return "You do not have permission to perform invoice workflow actions.";
+  const action = actionMatch[1].toLowerCase();
+  const invoiceId = actionMatch[2].toUpperCase();
+  const { data: invoice, error: invoiceError } = await supabase.from("invoices").select("invoice_id,status").eq("invoice_id", invoiceId).eq("company_id", companyId).maybeSingle();
+  if (invoiceError) throw invoiceError;
+  if (!invoice) return "That invoice was not found for your company.";
+  const { data: decision, error: decisionError } = await supabase.from("decisions").select("recommendation").eq("invoice_id", invoiceId).maybeSingle();
+  if (decisionError) throw decisionError;
+  if (!decision) return "This invoice does not have a system recommendation yet.";
+  const { error: actionError } = await supabase.from("invoice_actions").insert({
+    invoice_id: invoiceId,
+    company_id: companyId,
+    action,
+    previous_status: invoice.status,
+    new_status: invoice.status,
+    performed_by: userId,
+    reason: `User requested ${action}; system recommendation was ${decision.recommendation}. Invoice status remains ${invoice.status}.`,
+  });
+  if (actionError) throw actionError;
+  return `${action.toUpperCase()} recorded for ${invoiceId}. The invoice remains ${invoice.status} until the payment/status workflow is completed.`;
+}
+
 // ---- Onboarding + OTP (Phase 4) -------------------------------------------
 
 interface OnboardingContext {
@@ -1625,10 +1705,11 @@ Deno.serve(async (req) => {
         if (messageType === "text" && GREETING_PATTERN.test(content.trim())) {
           replyText = buildReply(messageType, content);
         } else if (linkedAccount.user_id) {
-          const { data: linkedUser, error: linkedUserError } = await supabase.from("users").select("company_id").eq("user_id", linkedAccount.user_id).maybeSingle();
+          const { data: linkedUser, error: linkedUserError } = await supabase.from("users").select("company_id,role").eq("user_id", linkedAccount.user_id).maybeSingle();
           if (linkedUserError) throw linkedUserError;
           if (!linkedUser) throw new Error("Linked WhatsApp account has no user record");
-          replyText = await answerFinancialQuestion(supabase, linkedUser.company_id, content);
+          const workflowReply = await handleWorkflowCommand(supabase, linkedAccount.user_id, linkedUser.company_id, linkedUser.role, content);
+          replyText = workflowReply ?? await answerFinancialQuestion(supabase, linkedUser.company_id, content);
         } else {
           replyText = buildReply(messageType, content);
         }

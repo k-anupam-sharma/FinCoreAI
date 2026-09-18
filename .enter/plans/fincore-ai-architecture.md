@@ -844,14 +844,14 @@ The system now produces decisions but does not let authorized users act on them 
 
 ### Implementation checklist (Phase 12)
 
-- [ ] Add on-demand alert scanning with bounded, company-scoped results and idempotent `risk_alerts` writes.
-- [ ] Add `alerts`/`risk alerts` routing for active users.
-- [ ] Add strict invoice action parsing and existing-invoice/recommendation checks.
-- [ ] Enforce admin/finance_manager/department_head authorization in the backend.
-- [ ] Insert `invoice_actions` audit rows and apply only schema-compatible status changes.
-- [ ] Add alert resolution authorization and audit-safe update behavior.
-- [ ] Return safe responses for unknown invoice IDs, unauthorized roles, and already-actioned invoices.
-- [ ] Deploy and append the Phase 12 demo walkthrough.
+- [x] Add on-demand alert scanning with bounded, company-scoped results and idempotent `risk_alerts` writes.
+- [x] Add `alerts`/`risk alerts` routing for active users.
+- [x] Add strict invoice action parsing and existing-invoice/recommendation checks.
+- [x] Enforce admin/finance_manager/department_head authorization in the backend.
+- [x] Insert `invoice_actions` audit rows and apply only schema-compatible status changes.
+- [x] Add alert resolution authorization and audit-safe update behavior.
+- [x] Return safe responses for unknown invoice IDs, unauthorized roles, and already-actioned invoices.
+- [x] Deploy and append the Phase 12 demo walkthrough.
 
 ### Verification checklist (Phase 12)
 

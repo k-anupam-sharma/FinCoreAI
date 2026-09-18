@@ -297,3 +297,20 @@ What is our cash flow?
 
 FinCore responds from company-scoped database facts and uses Qwen only to explain those facts. Unknown questions return the supported-topic list. Q&A is read-only and does not change invoices, budgets, vendors, or decisions.
 
+---
+
+# Demo script — Phase 12: Risk alerts + workflow actions
+
+From an active WhatsApp account:
+
+```text
+alerts
+approve INV-<id>
+review INV-<id>
+defer INV-<id>
+reject INV-<id>
+resolve alert <alert-id>
+```
+
+`alerts` creates/reuses company-scoped open `risk_alerts` rows and lists the highest-severity items. Workflow actions require `admin`, `finance_manager`, or `department_head`; viewers and auditors are denied. Every accepted action is written to `invoice_actions`, while the invoice remains in its existing schema-valid status until a later payment/status workflow.
+
