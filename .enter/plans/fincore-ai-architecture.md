@@ -321,15 +321,12 @@ Each milestone is implemented, verified, and explained before the next starts �
 
 ## Implementation checklist (Phase 1–2, next step after approval)
 
-- [ ] Harden `.gitignore` with `.env`, `.env.*.local`, and generic key/credential file patterns (defense-in-depth; no secret is ever committed by this workflow regardless).
-- [ ] Enable Enter Cloud (`supabase_enable`) if not already on.
-- [ ] Migration: create `companies`, `users`, `vendors`, `vendor_bank_changes`, `gl_accounts`, `invoices`, `invoice_items`, `payments`, `budgets`, `transactions`, `decisions` with text PKs matching CSV IDs; RLS enabled with default-deny (service-role only) policies.
-- [ ] Migration: create `auth_methods`, `whatsapp_accounts`, `otp_sessions`, `conversation_sessions`, `conversation_messages`, `auth_log` (uuid PKs except auth_log which keeps CSV `log_id`); RLS default-deny.
-- [ ] Migration: create `invoice_analysis`, `invoice_actions`, `risk_alerts`, `forecast_records`, `decision_rules_config`; RLS default-deny.
-- [ ] Migration: create `dashboard_admins`; RLS scoped to `auth.uid()` for Path B.
-- [ ] Migration: create `demo_anomaly_answer_key`, clearly commented as test-only.
-- [ ] Seed `decision_rules_config` with default thresholds for duplicate/budget/anomaly review levels.
-- [ ] Import all CSVs from `datasets.zip` preserving foreign keys (companies -> users/vendors -> invoices -> payments/decisions/invoice_analysis linkage, budgets, transactions, gl_accounts, vendor_bank_changes, auth_log, demo_anomaly_answer_key).
+- [x] Harden `.gitignore` with `.env`, `.env.*.local`, and generic key/credential file patterns (defense-in-depth; no secret is ever committed by this workflow regardless).
+- [x] Stage the provided dataset at `docs/seed-data/*.csv` with import/mapping notes in `docs/seed-data/README.md`.
+- [x] Draft the full schema (all tables + RLS policies + default `decision_rules_config` seed) at `docs/database-schema.sql`, ready to run once Enter Cloud is available.
+- [ ] **Blocked:** Enable Enter Cloud (`supabase_enable`) — provisioning has failed on the platform side (`Enter Cloud failed to start`); retry when the platform issue clears.
+- [ ] Once Enter Cloud is up: apply `docs/database-schema.sql` via `supabase_migration` (in reviewable chunks).
+- [ ] Import all CSVs from `docs/seed-data/` preserving foreign keys, in the order listed in `docs/seed-data/README.md`.
 - [ ] Verify imported row counts match source CSVs and spot-check a few FK joins (e.g. an invoice's vendor_id and company_id resolve correctly).
 
 ## Verification checklist

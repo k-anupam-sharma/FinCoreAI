@@ -1,0 +1,110 @@
+id,source_table,related_id,anomaly_type,description
+AK-0001,invoices,INV-00231,duplicate_invoice,Near-identical amount/date to INV-00232 from the same vendor
+AK-0002,invoices,INV-00232,duplicate_invoice,Near-identical amount/date to INV-00231 from the same vendor
+AK-0003,invoices,INV-00233,duplicate_invoice,Near-identical amount/date to INV-00234 from the same vendor
+AK-0004,invoices,INV-00234,duplicate_invoice,Near-identical amount/date to INV-00233 from the same vendor
+AK-0005,invoices,INV-00235,duplicate_invoice,Near-identical amount/date to INV-00236 from the same vendor
+AK-0006,invoices,INV-00236,duplicate_invoice,Near-identical amount/date to INV-00235 from the same vendor
+AK-0007,invoices,INV-00237,duplicate_invoice,Near-identical amount/date to INV-00238 from the same vendor
+AK-0008,invoices,INV-00238,duplicate_invoice,Near-identical amount/date to INV-00237 from the same vendor
+AK-0009,invoices,INV-00239,duplicate_invoice,Near-identical amount/date to INV-00240 from the same vendor
+AK-0010,invoices,INV-00240,duplicate_invoice,Near-identical amount/date to INV-00239 from the same vendor
+AK-0011,invoices,INV-00241,duplicate_invoice,Near-identical amount/date to INV-00242 from the same vendor
+AK-0012,invoices,INV-00242,duplicate_invoice,Near-identical amount/date to INV-00241 from the same vendor
+AK-0013,invoices,INV-00243,duplicate_invoice,Near-identical amount/date to INV-00244 from the same vendor
+AK-0014,invoices,INV-00244,duplicate_invoice,Near-identical amount/date to INV-00243 from the same vendor
+AK-0015,invoices,INV-00245,duplicate_invoice,Near-identical amount/date to INV-00246 from the same vendor
+AK-0016,invoices,INV-00246,duplicate_invoice,Near-identical amount/date to INV-00245 from the same vendor
+AK-0017,invoices,INV-00247,duplicate_invoice,Near-identical amount/date to INV-00248 from the same vendor
+AK-0018,invoices,INV-00248,duplicate_invoice,Near-identical amount/date to INV-00247 from the same vendor
+AK-0019,invoices,INV-00249,duplicate_invoice,Near-identical amount/date to INV-00250 from the same vendor
+AK-0020,invoices,INV-00250,duplicate_invoice,Near-identical amount/date to INV-00249 from the same vendor
+AK-0021,invoices,INV-00251,round_number_pattern,"Suspiciously round invoice amount, atypical for this vendor category"
+AK-0022,invoices,INV-00252,round_number_pattern,"Suspiciously round invoice amount, atypical for this vendor category"
+AK-0023,invoices,INV-00253,round_number_pattern,"Suspiciously round invoice amount, atypical for this vendor category"
+AK-0024,invoices,INV-00254,round_number_pattern,"Suspiciously round invoice amount, atypical for this vendor category"
+AK-0025,invoices,INV-00255,round_number_pattern,"Suspiciously round invoice amount, atypical for this vendor category"
+AK-0026,invoices,INV-00256,round_number_pattern,"Suspiciously round invoice amount, atypical for this vendor category"
+AK-0027,invoices,INV-00257,round_number_pattern,"Suspiciously round invoice amount, atypical for this vendor category"
+AK-0028,invoices,INV-00258,round_number_pattern,"Suspiciously round invoice amount, atypical for this vendor category"
+AK-0029,invoices,INV-00259,round_number_pattern,"Suspiciously round invoice amount, atypical for this vendor category"
+AK-0030,invoices,INV-00260,round_number_pattern,"Suspiciously round invoice amount, atypical for this vendor category"
+AK-0031,invoices,INV-00261,round_number_pattern,"Suspiciously round invoice amount, atypical for this vendor category"
+AK-0032,invoices,INV-00262,round_number_pattern,"Suspiciously round invoice amount, atypical for this vendor category"
+AK-0033,invoices,INV-00263,vendor_spend_spike,Amount is 5.6x this vendor's typical invoice size
+AK-0034,invoices,INV-00264,vendor_spend_spike,Amount is 4.3x this vendor's typical invoice size
+AK-0035,invoices,INV-00265,vendor_spend_spike,Amount is 4.1x this vendor's typical invoice size
+AK-0036,invoices,INV-00266,vendor_spend_spike,Amount is 4.1x this vendor's typical invoice size
+AK-0037,invoices,INV-00267,vendor_spend_spike,Amount is 4.1x this vendor's typical invoice size
+AK-0038,invoices,INV-00268,vendor_spend_spike,Amount is 4.8x this vendor's typical invoice size
+AK-0039,invoices,INV-00269,vendor_spend_spike,Amount is 5.2x this vendor's typical invoice size
+AK-0040,invoices,INV-00270,vendor_spend_spike,Amount is 4.8x this vendor's typical invoice size
+AK-0041,invoices,INV-00271,vendor_spend_spike,Amount is 4.5x this vendor's typical invoice size
+AK-0042,invoices,INV-00272,vendor_spend_spike,Amount is 3.6x this vendor's typical invoice size
+AK-0043,invoices,INV-00273,split_invoice_suspected,Same vendor/day as INV-00274; combined total crosses the 500000 approval threshold
+AK-0044,invoices,INV-00274,split_invoice_suspected,Same vendor/day as INV-00273; combined total crosses the 500000 approval threshold
+AK-0045,invoices,INV-00275,split_invoice_suspected,Same vendor/day as INV-00276; combined total crosses the 500000 approval threshold
+AK-0046,invoices,INV-00276,split_invoice_suspected,Same vendor/day as INV-00275; combined total crosses the 500000 approval threshold
+AK-0047,invoices,INV-00277,split_invoice_suspected,Same vendor/day as INV-00278; combined total crosses the 500000 approval threshold
+AK-0048,invoices,INV-00278,split_invoice_suspected,Same vendor/day as INV-00277; combined total crosses the 500000 approval threshold
+AK-0049,invoices,INV-00279,split_invoice_suspected,Same vendor/day as INV-00280; combined total crosses the 500000 approval threshold
+AK-0050,invoices,INV-00280,split_invoice_suspected,Same vendor/day as INV-00279; combined total crosses the 500000 approval threshold
+AK-0051,invoices,INV-00281,split_invoice_suspected,Same vendor/day as INV-00282; combined total crosses the 500000 approval threshold
+AK-0052,invoices,INV-00282,split_invoice_suspected,Same vendor/day as INV-00281; combined total crosses the 500000 approval threshold
+AK-0053,invoices,INV-00283,split_invoice_suspected,Same vendor/day as INV-00284; combined total crosses the 500000 approval threshold
+AK-0054,invoices,INV-00284,split_invoice_suspected,Same vendor/day as INV-00283; combined total crosses the 500000 approval threshold
+AK-0055,invoices,INV-00285,split_invoice_suspected,Same vendor/day as INV-00286; combined total crosses the 500000 approval threshold
+AK-0056,invoices,INV-00286,split_invoice_suspected,Same vendor/day as INV-00285; combined total crosses the 500000 approval threshold
+AK-0057,invoices,INV-00287,split_invoice_suspected,Same vendor/day as INV-00288; combined total crosses the 500000 approval threshold
+AK-0058,invoices,INV-00288,split_invoice_suspected,Same vendor/day as INV-00287; combined total crosses the 500000 approval threshold
+AK-0059,invoices,INV-00289,new_vendor_large_invoice,"Large invoice within 20 days of vendor onboarding, no prior billing history"
+AK-0060,invoices,INV-00290,new_vendor_large_invoice,"Large invoice within 20 days of vendor onboarding, no prior billing history"
+AK-0061,invoices,INV-00291,new_vendor_large_invoice,"Large invoice within 20 days of vendor onboarding, no prior billing history"
+AK-0062,invoices,INV-00292,new_vendor_large_invoice,"Large invoice within 20 days of vendor onboarding, no prior billing history"
+AK-0063,invoices,INV-00293,new_vendor_large_invoice,"Large invoice within 20 days of vendor onboarding, no prior billing history"
+AK-0064,invoices,INV-00294,new_vendor_large_invoice,"Large invoice within 20 days of vendor onboarding, no prior billing history"
+AK-0065,invoices,INV-00295,new_vendor_large_invoice,"Large invoice within 20 days of vendor onboarding, no prior billing history"
+AK-0066,invoices,INV-00296,new_vendor_large_invoice,"Large invoice within 20 days of vendor onboarding, no prior billing history"
+AK-0067,invoices,INV-00297,off_hours_submission,"Submitted between 12am-5am, outside normal business activity"
+AK-0068,invoices,INV-00298,off_hours_submission,"Submitted between 12am-5am, outside normal business activity"
+AK-0069,invoices,INV-00299,off_hours_submission,"Submitted between 12am-5am, outside normal business activity"
+AK-0070,invoices,INV-00300,off_hours_submission,"Submitted between 12am-5am, outside normal business activity"
+AK-0071,invoices,INV-00301,off_hours_submission,"Submitted between 12am-5am, outside normal business activity"
+AK-0072,invoices,INV-00302,off_hours_submission,"Submitted between 12am-5am, outside normal business activity"
+AK-0073,invoices,INV-00303,off_hours_submission,"Submitted between 12am-5am, outside normal business activity"
+AK-0074,invoices,INV-00304,off_hours_submission,"Submitted between 12am-5am, outside normal business activity"
+AK-0075,invoices,INV-00305,off_hours_submission,"Submitted between 12am-5am, outside normal business activity"
+AK-0076,invoices,INV-00306,off_hours_submission,"Submitted between 12am-5am, outside normal business activity"
+AK-0077,invoices,INV-00307,off_hours_submission,"Submitted between 12am-5am, outside normal business activity"
+AK-0078,invoices,INV-00308,off_hours_submission,"Submitted between 12am-5am, outside normal business activity"
+AK-0079,invoices,INV-00309,off_hours_submission,"Submitted between 12am-5am, outside normal business activity"
+AK-0080,invoices,INV-00310,off_hours_submission,"Submitted between 12am-5am, outside normal business activity"
+AK-0081,invoices,INV-00311,off_hours_submission,"Submitted between 12am-5am, outside normal business activity"
+AK-0082,invoices,INV-00312,missing_po_high_value,High-value invoice with no purchase order on file
+AK-0083,invoices,INV-00313,missing_po_high_value,High-value invoice with no purchase order on file
+AK-0084,invoices,INV-00314,missing_po_high_value,High-value invoice with no purchase order on file
+AK-0085,invoices,INV-00315,missing_po_high_value,High-value invoice with no purchase order on file
+AK-0086,invoices,INV-00316,missing_po_high_value,High-value invoice with no purchase order on file
+AK-0087,invoices,INV-00317,missing_po_high_value,High-value invoice with no purchase order on file
+AK-0088,invoices,INV-00318,missing_po_high_value,High-value invoice with no purchase order on file
+AK-0089,invoices,INV-00319,missing_po_high_value,High-value invoice with no purchase order on file
+AK-0090,invoices,INV-00320,missing_po_high_value,High-value invoice with no purchase order on file
+AK-0091,invoices,INV-00321,missing_po_high_value,High-value invoice with no purchase order on file
+AK-0092,invoices,INV-00322,post_bank_change_invoice,Large invoice submitted 3 days after this vendor's bank details changed
+AK-0093,invoices,INV-00323,post_bank_change_invoice,Large invoice submitted 5 days after this vendor's bank details changed
+AK-0094,invoices,INV-00324,post_bank_change_invoice,Large invoice submitted 8 days after this vendor's bank details changed
+AK-0095,invoices,INV-00325,post_bank_change_invoice,Large invoice submitted 9 days after this vendor's bank details changed
+AK-0096,invoices,INV-00326,post_bank_change_invoice,Large invoice submitted 3 days after this vendor's bank details changed
+AK-0097,invoices,INV-00327,post_bank_change_invoice,Large invoice submitted 10 days after this vendor's bank details changed
+AK-0098,invoices,INV-00328,low_ocr_confidence_needs_review,Extraction confidence below 0.6 — needs manual verification
+AK-0099,invoices,INV-00329,low_ocr_confidence_needs_review,Extraction confidence below 0.6 — needs manual verification
+AK-0100,invoices,INV-00330,low_ocr_confidence_needs_review,Extraction confidence below 0.6 — needs manual verification
+AK-0101,invoices,INV-00331,low_ocr_confidence_needs_review,Extraction confidence below 0.6 — needs manual verification
+AK-0102,invoices,INV-00332,low_ocr_confidence_needs_review,Extraction confidence below 0.6 — needs manual verification
+AK-0103,invoices,INV-00333,low_ocr_confidence_needs_review,Extraction confidence below 0.6 — needs manual verification
+AK-0104,invoices,INV-00334,low_ocr_confidence_needs_review,Extraction confidence below 0.6 — needs manual verification
+AK-0105,invoices,INV-00335,low_ocr_confidence_needs_review,Extraction confidence below 0.6 — needs manual verification
+AK-0106,invoices,INV-00336,low_ocr_confidence_needs_review,Extraction confidence below 0.6 — needs manual verification
+AK-0107,invoices,INV-00337,low_ocr_confidence_needs_review,Extraction confidence below 0.6 — needs manual verification
+AK-0108,users,USR-0078,credential_stuffing_pattern,7 rapid failed logins from distinct IPs within ~14 minutes
+AK-0109,users,USR-0034,credential_stuffing_pattern,7 rapid failed logins from distinct IPs within ~14 minutes
