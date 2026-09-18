@@ -414,3 +414,61 @@ The user confirmed they have real Meta WhatsApp Cloud API credentials ready. Per
 - [x] Sending "Hi" from the user's real WhatsApp number to the connected test number produces a real reply on their phone within a few seconds, and the exchange is visible in `conversation_messages`. (User confirmed live: received the menu reply.)
 - [x] Sending "menu" produces the 8-item main menu reply; sending arbitrary text produces the echo/not-yet-implemented reply; sending an image produces the acknowledgement-only reply. (Logic verified in code and via the curl test; live-confirmed for the menu case.)
 - [ ] `supabase_search_edge_function_logs` for `whatsapp-webhook` shows no unhandled errors across the above test messages. **Blocked:** the log search tool itself returned a platform-side `HTTP 500` on every query attempted; functional correctness was instead confirmed directly via database row verification above. Retry log inspection in a later phase if the tool recovers.
+
+---
+
+## Phase 4 — Onboarding + account creation
+
+### Context
+
+Phase 3 shipped signature verification and an echo/menu-only reply. Phase 4 turns the webhook into a real conversation state machine that creates a genuine FinCore account (company, user, recovery email, WhatsApp link) instead of a static reply. This is the first phase that writes to `companies`/`users`/`auth_methods`/`whatsapp_accounts`/`otp_sessions` from a live backend function.
+
+**Confirmed with the user:**
+- If the typed company name matches an existing company, the new user joins instantly as `role='viewer'` — no admin-approval gate. (Simpler than the "notify an existing admin" idea floated in §6/§14 of this plan; that idea is dropped, not deferred.)
+- Recovery-email verification uses Resend's shared sandbox sender for now — real delivery is only guaranteed to the developer's own verified Resend account email until a custom domain is verified. This is a demo-time limitation, not a code gap.
+
+### Design decisions
+
+- **No new deployed function.** The original §9 API list proposed a separate `onboarding` function. Given the Phase-3-discovered bundler constraint (no cross-function shared imports) and that onboarding is invoked exclusively from inside the webhook's own per-message loop, it is implemented as local functions inside `supabase/functions/whatsapp-webhook/index.ts` directly — no internal HTTP hop, no service-role token passing between functions. This deviates from the original plan's function list; flagging it the same way the `_shared/` inlining constraint was flagged.
+- **State machine lives in `conversation_sessions.state` + `.context` (jsonb).** States added: `onboarding_name` → `onboarding_company` → `onboarding_role` → `onboarding_industry` → `onboarding_spend` → `onboarding_email` → `onboarding_otp` → `active`. `context` holds the in-progress draft answers plus the current OTP's hash/expiry/attempt count, mirroring the shape already proven in the client-side `ChatDraft` (`src/lib/fincore/conversation.ts`) but persisted server-side instead of `localStorage`.
+- **Identity check on every inbound message:** look up `whatsapp_accounts` by `wa_id` with `status='active'`. If found, the sender is already onboarded — fall through to the existing Phase 3 menu/echo logic unchanged. If not found and `conversation_sessions.state` is `new` or an `onboarding_*` state, run the onboarding step for that state. If not found and the message is `login`/`recover account`, reply that recovery is coming in a later phase (Phase 5) — do not silently swallow that text into the `name` field.
+- **OTP generation/verification is a same-file helper, not a separate function** (same reasoning as above): 6-digit code, SHA-256 hashed (Web Crypto `digest`, no external dependency) before storing in `otp_sessions.otp_hash`, `expires_at = now()+10min`, `max_attempts=5`, `purpose='signup_email_verify'`. Verification compares the hash of the input digits, increments `attempt_count` on mismatch, marks `status='locked'` and resets the session to `state='new'` after 5 failures, and marks `status='expired'` (session reset to `state='new'`) past `expires_at`.
+- **Email delivery via Resend's REST API** (`https://api.resend.com/emails`), called directly with `fetch` — no SDK needed for a single call. From address: `FinCore AI <onboarding@resend.dev>` (Resend's shared sandbox sender, per the user's confirmed choice).
+- **IDs:** new `company_id` as `CO-<8 hex chars>`, new `user_id` as `USR-<8 hex chars>` (distinct prefixes from the CSV-seeded `COMP-XX`/`USR-XXXX` patterns, so origin is visually obvious in the data without needing a separate flag column).
+- **Validation** mirrors the already-proven client-side rules (`src/lib/fincore/conversation.ts`): non-empty name/role/industry/spend text, and an email-shape regex before triggering the OTP send.
+
+### Files
+
+- `supabase/functions/whatsapp-webhook/index.ts` — add: `whatsapp_accounts` identity lookup, the `onboarding_*` state handlers, `sha256Hex()`, `generateOtp()`, `sendOtpEmail()` (Resend call), and the state-dispatch branch that runs before the existing Phase 3 `buildReply()` fallback (which still fires once a session reaches `state='active'`).
+- `supabase/config.toml` — no changes (still just the one function).
+- `docs/demo-script.md` — append a Phase 4 section with the same signed-curl pattern used for Phase 3, walking through one full onboarding conversation.
+
+### Secrets (collected via `supabase_add_secret` before writing code)
+
+`RESEND_API_KEY`.
+
+## Implementation checklist (Phase 4)
+
+- [ ] Collect `RESEND_API_KEY` via `supabase_add_secret`.
+- [ ] In `whatsapp-webhook/index.ts`, add an identity lookup against `whatsapp_accounts` (`wa_id`, `status='active'`) before the existing Phase 3 reply logic; identified senders skip onboarding entirely.
+- [ ] Add `onboarding_name` → `onboarding_company` → `onboarding_role` → `onboarding_industry` → `onboarding_spend` → `onboarding_email` state handlers, each validating input and writing the answer into `conversation_sessions.context`, then advancing `state`.
+- [ ] Add company resolution in the `onboarding_company` step: case-insensitive match against `companies.name`; store `isNewCompany` + `resolvedCompanyId` (if matched) in `context`.
+- [ ] Add email-shape validation in `onboarding_email`; on a valid email, generate + SHA-256-hash a 6-digit OTP, insert an `otp_sessions` row (`purpose='signup_email_verify'`, `expires_at=now()+10min`, `max_attempts=5`), send it via Resend, advance to `onboarding_otp`.
+- [ ] Add `onboarding_otp` handling: expiry check, hash comparison, attempt increment/lockout (5 attempts), and on success — create the company (if new) or reuse the resolved one, create the `users` row (`role='admin'` for a new company, `role='viewer'` when joining an existing one), create `auth_methods` (`method_type='recovery_email'`, `verified_at=now()`), create `whatsapp_accounts` (`status='active'`), set `conversation_sessions.state='active'`, clear `context`, and reply "Your FinCore account has been created."
+- [ ] Add a guard: an unidentified sender typing `login`/`recover account` gets a "coming in a later phase" reply instead of being onboarded on that text.
+- [ ] Never leak the OTP value, Resend errors, or stack traces in any WhatsApp-visible reply; log detail server-side only.
+- [ ] Deploy via `supabase_deploy_edge_function`.
+- [ ] Append the Phase 4 walkthrough to `docs/demo-script.md`.
+
+## Verification checklist (Phase 4)
+
+- [ ] A signed curl POST simulating a brand-new `wa_id` sending "Hi" creates a `conversation_sessions` row with `state='onboarding_name'` and gets the "what's your name" prompt (verified via `supabase_read_query` + response body).
+- [ ] Walking a full simulated conversation (name → company → role → industry → spend → email) advances `state` correctly at each step, confirmed by reading `conversation_sessions.state`/`.context` after each curl POST.
+- [ ] Submitting an invalid email (no `@`) re-prompts without advancing state or creating an `otp_sessions` row.
+- [ ] Submitting a valid email creates exactly one `otp_sessions` row with a hashed (not plaintext) code and `purpose='signup_email_verify'`.
+- [ ] Submitting the wrong OTP code increments `attempt_count` and does not create any `users`/`companies`/`whatsapp_accounts` row.
+- [ ] Submitting the wrong OTP code 5 times sets the `otp_sessions.status='locked'` and resets `conversation_sessions.state='new'`.
+- [ ] Submitting the correct OTP code creates exactly one `companies` row (new-company path) or zero new `companies` rows (existing-company path), exactly one `users` row, one `auth_methods` row, and one `whatsapp_accounts` row — confirmed via `supabase_read_query`.
+- [ ] Re-running the same `wa_id` through onboarding a second time (after already completing it) is skipped — the identity lookup finds the active `whatsapp_accounts` link and Phase 3's menu/echo logic runs instead.
+- [ ] Typing a company name that matches an existing seeded company (e.g. one from `companies.csv`) joins as `role='viewer'` against that existing `company_id`, not a new one.
+- [ ] Live test: a real WhatsApp number that has never messaged this business number before completes the full onboarding flow end-to-end and receives "Your FinCore account has been created."
