@@ -1,7 +1,8 @@
 // FinCore AI - WhatsApp webhook.
 //
 // Phase 3: signature verification, conversation_sessions bootstrap, echo/menu.
-// Phase 4 (this revision): full onboarding + account creation state machine.
+// Phase 4: full onboarding + account creation state machine.
+// Phase 5 (this revision): OTP account recovery + number linking (recovery_email/recovery_otp states).
 // Later phases (invoice analysis, Q&A, alerts, forecasting) still extend the
 // same routing below. See .enter/plans/fincore-ai-architecture.md.
 //
@@ -199,6 +200,9 @@ interface OnboardingContext {
   otpHash?: string;
   otpExpiresAt?: string;
   otpAttempts?: number;
+  recoveryUserId?: string;
+  recoveryName?: string;
+  recoveryCompanyId?: string;
 }
 
 async function sha256Hex(text: string): Promise<string> {
@@ -250,6 +254,24 @@ async function updateSession(supabase: SupabaseClient, sessionId: string, state:
   if (error) throw error;
 }
 
+async function insertAuthLog(
+  supabase: SupabaseClient,
+  eventType: string,
+  success: boolean,
+  userId?: string | null,
+  companyId?: string | null
+) {
+  const { error } = await supabase.from("auth_log").insert({
+    log_id: newId("LOG"),
+    event_type: eventType,
+    success,
+    user_id: userId ?? null,
+    company_id: companyId ?? null,
+    device: "whatsapp",
+  });
+  if (error) throw error;
+}
+
 /** Runs one step of the onboarding/OTP state machine and returns the reply text. Mutates the DB as a side effect. */
 async function handleOnboardingMessage(
   supabase: SupabaseClient,
@@ -265,7 +287,8 @@ async function handleOnboardingMessage(
 
   if (state === "new" || !state) {
     if (messageType === "text" && /^(login|recover( account)?)/.test(lower)) {
-      return "Account recovery is coming in a later phase of this build. Type 'Hi' to create a new FinCore account.";
+      await updateSession(supabase, sessionId, "recovery_email", {});
+      return "Let's get you back in. What's the recovery email registered to your FinCore account?";
     }
     await updateSession(supabase, sessionId, "onboarding_name", {});
     return ["Hi! I'm FinCore AI, your financial intelligence assistant.", "", "Let's set up your account. What's your name?"].join(NL);
@@ -432,6 +455,143 @@ async function handleOnboardingMessage(
 
       await updateSession(supabase, sessionId, "active", {});
       return [`Your FinCore account has been created. Welcome, ${context.name ?? "there"}!`, "", MENU_TEXT].join(NL);
+    }
+
+    case "recovery_email": {
+      if (!isValidEmail(trimmed)) return "That doesn't look like a valid email. Please try again.";
+
+      const { data: methodRow, error: methodError } = await supabase
+        .from("auth_methods")
+        .select("user_id")
+        .eq("method_type", "recovery_email")
+        .not("verified_at", "is", null)
+        .ilike("value", trimmed)
+        .limit(1)
+        .maybeSingle();
+      if (methodError) throw methodError;
+
+      if (!methodRow) {
+        await insertAuthLog(supabase, "login_failed", false);
+        return "I couldn't find a FinCore account with that email. Type 'Hi' to create a new account, or reply with a different recovery email.";
+      }
+
+      const { data: matchedUser, error: userLookupError } = await supabase
+        .from("users")
+        .select("user_id,name,company_id,account_status")
+        .eq("user_id", methodRow.user_id)
+        .maybeSingle();
+      if (userLookupError) throw userLookupError;
+
+      if (!matchedUser || matchedUser.account_status !== "Active") {
+        await insertAuthLog(supabase, "login_failed", false, matchedUser?.user_id, matchedUser?.company_id);
+        await updateSession(supabase, sessionId, "new", {});
+        return "This account is currently locked or suspended. Please contact your FinCore admin for help.";
+      }
+
+      const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+      const { count: recentOtpCount, error: rateLimitError } = await supabase
+        .from("otp_sessions")
+        .select("id", { count: "exact", head: true })
+        .eq("requester_phone", waId)
+        .eq("purpose", "account_recovery")
+        .gt("created_at", oneHourAgo);
+      if (rateLimitError) throw rateLimitError;
+
+      if ((recentOtpCount ?? 0) >= 5) {
+        return "Too many recovery attempts from this number. Please try again later.";
+      }
+
+      const code = generateOtp();
+      const otpHash = await sha256Hex(code);
+      const expiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString();
+
+      const { data: otpRow, error: otpError } = await supabase
+        .from("otp_sessions")
+        .insert({
+          channel: "email",
+          destination: trimmed,
+          otp_hash: otpHash,
+          purpose: "account_recovery",
+          expires_at: expiresAt,
+          max_attempts: 5,
+          status: "pending",
+          requester_phone: waId,
+          user_id: matchedUser.user_id,
+        })
+        .select("id")
+        .single();
+      if (otpError) throw otpError;
+
+      const emailResult = await sendOtpEmail(trimmed, code);
+      if (!emailResult.success) {
+        console.error(`whatsapp-webhook: failed to send recovery OTP email to ${trimmed}: ${emailResult.error}`);
+      }
+
+      await insertAuthLog(supabase, "otp_requested", true, matchedUser.user_id, matchedUser.company_id);
+
+      await updateSession(supabase, sessionId, "recovery_otp", {
+        recoveryUserId: matchedUser.user_id,
+        recoveryName: matchedUser.name,
+        recoveryCompanyId: matchedUser.company_id,
+        otpSessionId: otpRow.id,
+        otpHash,
+        otpExpiresAt: expiresAt,
+        otpAttempts: 0,
+      });
+      return `I've sent a 6-digit recovery code to ${trimmed}. Reply with the code to confirm (it expires in 10 minutes).`;
+    }
+
+    case "recovery_otp": {
+      if (!context.otpHash || !context.otpExpiresAt || !context.recoveryUserId) {
+        await updateSession(supabase, sessionId, "new", {});
+        return "Something went wrong with your recovery. Type 'login' to start again.";
+      }
+
+      if (Date.now() > new Date(context.otpExpiresAt).getTime()) {
+        if (context.otpSessionId) await supabase.from("otp_sessions").update({ status: "expired" }).eq("id", context.otpSessionId);
+        await updateSession(supabase, sessionId, "new", {});
+        return "That code expired. Type 'login' to start again.";
+      }
+
+      const recoveryInputHash = await sha256Hex(trimmed);
+      if (recoveryInputHash !== context.otpHash) {
+        const attempts = (context.otpAttempts ?? 0) + 1;
+        if (attempts >= 5) {
+          if (context.otpSessionId) await supabase.from("otp_sessions").update({ status: "locked", attempt_count: attempts }).eq("id", context.otpSessionId);
+          const { error: lockError } = await supabase.from("users").update({ account_status: "Locked" }).eq("user_id", context.recoveryUserId);
+          if (lockError) throw lockError;
+          await insertAuthLog(supabase, "account_locked", false, context.recoveryUserId, context.recoveryCompanyId);
+          await updateSession(supabase, sessionId, "new", {});
+          return "Too many incorrect attempts. Your account has been locked for security. Contact your FinCore admin to unlock it.";
+        }
+        if (context.otpSessionId) await supabase.from("otp_sessions").update({ attempt_count: attempts }).eq("id", context.otpSessionId);
+        await updateSession(supabase, sessionId, "recovery_otp", { ...context, otpAttempts: attempts });
+        return `That code doesn't match. Attempts left: ${5 - attempts}.`;
+      }
+
+      if (context.otpSessionId) await supabase.from("otp_sessions").update({ status: "verified" }).eq("id", context.otpSessionId);
+      await insertAuthLog(supabase, "otp_verified", true, context.recoveryUserId, context.recoveryCompanyId);
+
+      const { error: unlinkError } = await supabase
+        .from("whatsapp_accounts")
+        .update({ status: "unlinked" })
+        .eq("user_id", context.recoveryUserId)
+        .eq("status", "active");
+      if (unlinkError) throw unlinkError;
+
+      const { error: relinkError } = await supabase.from("whatsapp_accounts").insert({
+        user_id: context.recoveryUserId,
+        phone_number: waId,
+        wa_id: waId,
+        status: "active",
+        last_inbound_at: new Date().toISOString(),
+      });
+      if (relinkError) throw relinkError;
+
+      await insertAuthLog(supabase, "login_success", true, context.recoveryUserId, context.recoveryCompanyId);
+
+      await updateSession(supabase, sessionId, "active", {});
+      return [`Welcome back, ${context.recoveryName ?? "there"}! Your FinCore account is now linked to this number.`, "", MENU_TEXT].join(NL);
     }
 
     default: {
