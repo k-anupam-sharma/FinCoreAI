@@ -121,7 +121,26 @@ interface InboundSummary {
 interface InvoiceIngestResult {
   success: boolean;
   invoiceId?: string;
+  storagePath?: string;
+  mimeType?: string;
   errorMessage: string;
+}
+
+interface ExtractedInvoiceFields {
+  invoice_number: string | null;
+  vendor_name: string | null;
+  invoice_date: string | null;
+  due_date: string | null;
+  currency: string | null;
+  subtotal: number | null;
+  tax_amount: number | null;
+  total_amount: number | null;
+  po_number: string | null;
+  payment_terms: string | null;
+  department: string | null;
+  description: string | null;
+  confidence: number | null;
+  line_items: Array<{ description: string | null; quantity: number | null; unit_price: number | null; amount: number | null }>;
 }
 
 interface WhatsAppWebhookPayload {
@@ -213,6 +232,10 @@ function buildReply(messageType: string, content: string): string {
 
 const INVOICE_BUCKET = "fincore-invoices";
 const MAX_INVOICE_BYTES = 10 * 1024 * 1024;
+const AI_API_TOKEN = Deno.env.get("AI_API_TOKEN_207130282296") ?? "";
+const AI_API_BASE = "https://api.enter.pro";
+const AI_PROJECT_ID = "20713028229644c2839e687ec9379bee";
+const OCR_MODEL = "alibaba/qwen-3.7-plus";
 const ALLOWED_INVOICE_TYPES = new Set(["application/pdf", "image/jpeg", "image/png"]);
 
 function invoiceExtension(mimeType: string, filename?: string): string {
@@ -324,10 +347,176 @@ async function ingestWhatsAppInvoice(
       await supabase.storage.from(INVOICE_BUCKET).remove([storagePath]);
       throw invoiceError;
     }
-    return { success: true, invoiceId, errorMessage: "" };
+    return { success: true, invoiceId, storagePath, mimeType: media.mimeType, errorMessage: "" };
   } catch (error) {
     console.error("whatsapp-webhook: invoice ingest failed", error instanceof Error ? error.message : error);
     return { success: false, errorMessage: "I couldn't save that invoice. Please try sending it again." };
+  }
+}
+
+function parseJsonObject(text: string): Record<string, unknown> | null {
+  const cleaned = text.trim().replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/i, "");
+  try {
+    const value = JSON.parse(cleaned);
+    return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : null;
+  } catch {
+    return null;
+  }
+}
+
+function numberOrNull(value: unknown): number | null {
+  if (value === null || value === undefined || value === "") return null;
+  const parsed = typeof value === "number" ? value : Number(String(value).replace(/,/g, ""));
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function stringOrNull(value: unknown): string | null {
+  return typeof value === "string" && value.trim() ? value.trim() : null;
+}
+
+function normalizeExtractedFields(value: Record<string, unknown>): ExtractedInvoiceFields {
+  const rawItems = Array.isArray(value.line_items) ? value.line_items : [];
+  return {
+    invoice_number: stringOrNull(value.invoice_number),
+    vendor_name: stringOrNull(value.vendor_name),
+    invoice_date: stringOrNull(value.invoice_date),
+    due_date: stringOrNull(value.due_date),
+    currency: stringOrNull(value.currency),
+    subtotal: numberOrNull(value.subtotal),
+    tax_amount: numberOrNull(value.tax_amount),
+    total_amount: numberOrNull(value.total_amount),
+    po_number: stringOrNull(value.po_number),
+    payment_terms: stringOrNull(value.payment_terms),
+    department: stringOrNull(value.department),
+    description: stringOrNull(value.description),
+    confidence: numberOrNull(value.confidence),
+    line_items: rawItems.map((item) => {
+      const row = item && typeof item === "object" ? item as Record<string, unknown> : {};
+      return {
+        description: stringOrNull(row.description),
+        quantity: numberOrNull(row.quantity),
+        unit_price: numberOrNull(row.unit_price),
+        amount: numberOrNull(row.amount),
+      };
+    }),
+  };
+}
+
+function validateExtractedFields(fields: ExtractedInvoiceFields): { valid: boolean; errors: string[]; warnings: string[] } {
+  const errors: string[] = [];
+  const warnings: string[] = [];
+  if (!fields.invoice_date || !/^\d{4}-\d{2}-\d{2}$/.test(fields.invoice_date)) errors.push("Invoice date is missing or not YYYY-MM-DD");
+  if (fields.due_date && !/^\d{4}-\d{2}-\d{2}$/.test(fields.due_date)) errors.push("Due date is not YYYY-MM-DD");
+  if (fields.invoice_date && fields.due_date && fields.due_date < fields.invoice_date) errors.push("Due date is before invoice date");
+  if (fields.total_amount === null) errors.push("Total amount is missing");
+  for (const [name, amount] of [["subtotal", fields.subtotal], ["tax_amount", fields.tax_amount], ["total_amount", fields.total_amount]] as Array<[string, number | null]>) {
+    if (amount !== null && amount < 0) errors.push(`${name} cannot be negative`);
+  }
+  if (fields.subtotal !== null && fields.tax_amount !== null && fields.total_amount !== null && Math.abs(fields.subtotal + fields.tax_amount - fields.total_amount) > 1) {
+    errors.push("Subtotal plus tax does not match total");
+  }
+  if (fields.confidence === null || fields.confidence < 0 || fields.confidence > 1) errors.push("Confidence must be between 0 and 1");
+  if (fields.line_items.length === 0) warnings.push("No line items were extracted");
+  if (fields.vendor_name === null) warnings.push("Vendor name was not extracted");
+  return { valid: errors.length === 0, errors, warnings };
+}
+
+async function analyzeStoredInvoice(
+  supabase: SupabaseClient,
+  invoiceId: string,
+  storagePath: string,
+  mimeType: string,
+  companyId: string,
+): Promise<{ success: boolean; summary: string }> {
+  if (!mimeType.startsWith("image/")) {
+    return { success: false, summary: "The invoice is stored safely. PDF extraction will be enabled in the next extraction update." };
+  }
+  if (!AI_API_TOKEN) {
+    console.error("whatsapp-webhook: AI token is not configured");
+    return { success: false, summary: "The invoice is stored safely, but extraction is temporarily unavailable." };
+  }
+
+  try {
+    const { data: file, error: downloadError } = await supabase.storage.from(INVOICE_BUCKET).download(storagePath);
+    if (downloadError || !file) throw downloadError ?? new Error("Stored invoice could not be downloaded");
+    const bytes = new Uint8Array(await file.arrayBuffer());
+    let binary = "";
+    for (const byte of bytes) binary += String.fromCharCode(byte);
+    const imageDataUrl = `data:${mimeType};base64,${btoa(binary)}`;
+    const prompt = [
+      "Extract only facts visibly present in this invoice image.",
+      "Return one JSON object only, with exactly these keys:",
+      "invoice_number, vendor_name, invoice_date, due_date, currency, subtotal, tax_amount, total_amount, po_number, payment_terms, department, description, confidence, line_items.",
+      "Use YYYY-MM-DD dates, numbers for monetary values, confidence from 0 to 1, and an array of line_items with description, quantity, unit_price, amount.",
+      "Use null for any missing or unreadable value. Never guess, infer, or calculate a missing value.",
+    ].join(" ");
+    const response = await fetch(`${AI_API_BASE}/code/api/v1/ai/chat/completions`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${AI_API_TOKEN}`,
+        "Content-Type": "application/json",
+        "X-Enter-Project-ID": AI_PROJECT_ID,
+        "X-Session-ID": `invoice-${invoiceId}`,
+      },
+      body: JSON.stringify({
+        model: OCR_MODEL,
+        stream: false,
+        temperature: 0,
+        max_tokens: 1800,
+        messages: [
+          { role: "system", content: "You are a precise invoice OCR extractor. Output JSON only." },
+          {
+            role: "user",
+            content: [
+              { type: "text", text: prompt },
+              { type: "image_url", image_url: { url: imageDataUrl } },
+            ],
+          },
+        ],
+      }),
+    });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data?.error?.message ?? `AI request failed (${response.status})`);
+    const content = data?.choices?.[0]?.message?.content;
+    const parsed = typeof content === "string" ? parseJsonObject(content) : null;
+    if (!parsed) throw new Error("AI returned malformed JSON");
+
+    const fields = normalizeExtractedFields(parsed);
+    const validation = validateExtractedFields(fields);
+    const { data: matchingVendor, error: vendorError } = fields.vendor_name
+      ? await supabase.from("vendors").select("vendor_id").eq("company_id", companyId).ilike("name", fields.vendor_name).maybeSingle()
+      : { data: null, error: null };
+    if (vendorError) throw vendorError;
+
+    const invoiceUpdate: Record<string, unknown> = {
+      subtotal: fields.subtotal ?? 0,
+      tax_amount: fields.tax_amount ?? 0,
+      total_amount: fields.total_amount ?? 0,
+      currency: fields.currency ?? "INR",
+      ocr_confidence: fields.confidence,
+      due_date: fields.due_date,
+      payment_terms: fields.payment_terms,
+      po_number: fields.po_number,
+      department: fields.department,
+      notes: fields.description,
+    };
+    if (fields.invoice_date && /^\d{4}-\d{2}-\d{2}$/.test(fields.invoice_date)) invoiceUpdate.date = fields.invoice_date;
+    if (matchingVendor?.vendor_id) invoiceUpdate.vendor_id = matchingVendor.vendor_id;
+
+    const { error: invoiceUpdateError } = await supabase.from("invoices").update(invoiceUpdate).eq("invoice_id", invoiceId);
+    if (invoiceUpdateError) throw invoiceUpdateError;
+    const { error: analysisError } = await supabase.from("invoice_analysis").insert({
+      invoice_id: invoiceId,
+      extracted_fields: fields,
+      validation_result: validation,
+    });
+    if (analysisError) throw analysisError;
+
+    const totalText = fields.total_amount === null ? "an unread total" : `${fields.currency ?? "INR"} ${fields.total_amount.toFixed(2)}`;
+    return { success: true, summary: `Extraction complete for ${invoiceId}: total ${totalText}. Validation: ${validation.valid ? "passed" : "needs review"}.` };
+  } catch (error) {
+    console.error("whatsapp-webhook: invoice extraction failed", error instanceof Error ? error.message : error);
+    return { success: false, summary: "The invoice is stored safely, but extraction needs a retry." };
   }
 }
 
@@ -884,9 +1073,22 @@ Deno.serve(async (req) => {
         if (linkedUserError) throw linkedUserError;
         if (!linkedUser) throw new Error("Linked WhatsApp account has no user record");
         const ingestResult = await ingestWhatsAppInvoice(supabase, summary, linkedUser.company_id, linkedAccount.user_id);
-        replyText = ingestResult.success
-          ? `Invoice ${ingestResult.invoiceId} received and queued for analysis. Extraction and risk analysis will follow in the next phase.`
-          : ingestResult.errorMessage;
+        if (!ingestResult.success) {
+          replyText = ingestResult.errorMessage;
+        } else if (ingestResult.invoiceId && ingestResult.storagePath && ingestResult.mimeType) {
+          const analysisResult = await analyzeStoredInvoice(
+            supabase,
+            ingestResult.invoiceId,
+            ingestResult.storagePath,
+            ingestResult.mimeType,
+            linkedUser.company_id,
+          );
+          replyText = analysisResult.success
+            ? analysisResult.summary
+            : `Invoice ${ingestResult.invoiceId} received. ${analysisResult.summary}`;
+        } else {
+          replyText = `Invoice ${ingestResult.invoiceId} received and stored safely.`;
+        }
       } else {
         replyText = buildReply(messageType, content);
       }
