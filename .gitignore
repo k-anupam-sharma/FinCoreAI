@@ -24,3 +24,12 @@ reports
 *.sln
 *.sw?
 code_template.zip
+
+# Secrets / credentials — never commit these
+.env
+.env.local
+.env.*.local
+*.pem
+*.key
+*credentials*.json
+*service-account*.json
