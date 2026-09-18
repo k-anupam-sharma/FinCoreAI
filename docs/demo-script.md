@@ -245,3 +245,17 @@ Duplicate scoring compares the same-company, same-vendor history using invoice n
 
 The `whatsapp_message_receipts` table makes Meta message processing idempotent. If Meta retries the same inbound message ID, no second invoice or reply is created.
 
+---
+
+# Demo script — Phase 9: Budget impact + anomaly detection
+
+After duplicate and vendor intelligence, FinCore sends a final deterministic budget/anomaly summary.
+
+```sql
+select invoice_id, budget_impact, anomaly_score, anomaly_reasons
+  from invoice_analysis
+ where invoice_id = '<invoice id>';
+```
+
+The response reports projected department utilization when a matching budget exists, otherwise explicitly says no budget was found. Anomaly reasons are named signals with weights; no approval or rejection is issued in this phase.
+

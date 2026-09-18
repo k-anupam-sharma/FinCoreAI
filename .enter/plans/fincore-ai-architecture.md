@@ -711,14 +711,14 @@ Phase 8 now produces duplicate and vendor-risk facts, but it does not show how a
 
 ### Implementation checklist (Phase 9)
 
-- [ ] Add budget projection arithmetic with explicit no-budget behavior.
-- [ ] Load applicable company thresholds with safe defaults.
-- [ ] Add deterministic anomaly signal helpers and cap the score at 100.
-- [ ] Query same-company nearby invoice history needed for split-invoice and spend-spike signals.
-- [ ] Update the existing `invoice_analysis` row with `budget_impact`, `anomaly_score`, and `anomaly_reasons` without changing invoice status.
-- [ ] Send a final WhatsApp response containing budget utilization and anomaly score/reasons.
-- [ ] Preserve prior OCR, duplicate, and vendor-risk facts if Phase 9 encounters an error.
-- [ ] Deploy and append the Phase 9 demo walkthrough.
+- [x] Add budget projection arithmetic with explicit no-budget behavior.
+- [x] Load applicable company thresholds with safe defaults.
+- [x] Add deterministic anomaly signal helpers and cap the score at 100.
+- [x] Query same-company nearby invoice history needed for split-invoice and spend-spike signals.
+- [x] Update the existing `invoice_analysis` row with `budget_impact`, `anomaly_score`, and `anomaly_reasons` without changing invoice status.
+- [x] Send a final WhatsApp response containing budget utilization and anomaly score/reasons.
+- [x] Preserve prior OCR, duplicate, and vendor-risk facts if Phase 9 encounters an error.
+- [x] Deploy and append the Phase 9 demo walkthrough.
 
 ### Verification checklist (Phase 9)
 

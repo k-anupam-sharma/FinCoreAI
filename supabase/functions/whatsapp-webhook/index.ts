@@ -713,6 +713,140 @@ async function enrichInvoiceIntelligence(
   }
 }
 
+const DEFAULT_ANALYSIS_THRESHOLDS = {
+  budgetReviewThresholdPct: 85,
+  budgetDeferThresholdPct: 95,
+  anomalyReviewThreshold: 60,
+  vendorAmountMultiplierThreshold: 3,
+  bankChangeLookbackDays: 30,
+};
+
+async function enrichBudgetAndAnomalies(
+  supabase: SupabaseClient,
+  invoiceId: string,
+  companyId: string,
+): Promise<{ summary: string }> {
+  try {
+    const { data: invoice, error: invoiceError } = await supabase
+      .from("invoices")
+      .select("invoice_id,vendor_id,department,subtotal,tax_amount,total_amount,date,po_number,submitted_at,ocr_confidence")
+      .eq("invoice_id", invoiceId)
+      .eq("company_id", companyId)
+      .maybeSingle();
+    if (invoiceError) throw invoiceError;
+    if (!invoice) throw new Error("Invoice not found for anomaly analysis");
+    const period = String(invoice.date).slice(0, 7);
+    const invoiceTotal = Number(invoice.total_amount ?? 0);
+
+    const { data: budget, error: budgetError } = await supabase
+      .from("budgets")
+      .select("allocated,spent,remaining,department,period")
+      .eq("company_id", companyId)
+      .eq("department", invoice.department ?? "")
+      .eq("period", period)
+      .maybeSingle();
+    if (budgetError) throw budgetError;
+
+    const budgetImpact = budget
+      ? {
+          found: true,
+          department: invoice.department,
+          period,
+          allocated: Number(budget.allocated),
+          spentBefore: Number(budget.spent),
+          remainingBefore: Number(budget.remaining),
+          utilizationBeforePct: Number(budget.allocated) > 0 ? (Number(budget.spent) / Number(budget.allocated)) * 100 : 0,
+          invoiceAmount: invoiceTotal,
+          projectedSpent: Number(budget.spent) + invoiceTotal,
+          projectedRemaining: Number(budget.allocated) - Number(budget.spent) - invoiceTotal,
+          projectedUtilizationPct: Number(budget.allocated) > 0 ? ((Number(budget.spent) + invoiceTotal) / Number(budget.allocated)) * 100 : 0,
+          impact: "low" as "low" | "medium" | "high",
+        }
+      : {
+          found: false,
+          department: invoice.department,
+          period,
+          allocated: 0,
+          spentBefore: 0,
+          remainingBefore: 0,
+          utilizationBeforePct: 0,
+          invoiceAmount: invoiceTotal,
+          projectedSpent: invoiceTotal,
+          projectedRemaining: -invoiceTotal,
+          projectedUtilizationPct: 0,
+          impact: "medium" as "low" | "medium" | "high",
+        };
+    budgetImpact.impact = budgetImpact.projectedUtilizationPct >= 95 ? "high" : budgetImpact.projectedUtilizationPct >= 70 ? "medium" : "low";
+
+    const { data: rules, error: rulesError } = await supabase
+      .from("decision_rules_config")
+      .select("rule_key,threshold_value")
+      .eq("company_id", companyId);
+    if (rulesError) throw rulesError;
+    const thresholds = { ...DEFAULT_ANALYSIS_THRESHOLDS };
+    for (const rule of rules ?? []) {
+      if (rule.rule_key === "budget_review_threshold" || rule.rule_key === "budget_review_threshold_pct") thresholds.budgetReviewThresholdPct = Number(rule.threshold_value);
+      if (rule.rule_key === "budget_defer_threshold" || rule.rule_key === "budget_defer_threshold_pct") thresholds.budgetDeferThresholdPct = Number(rule.threshold_value);
+      if (rule.rule_key === "anomaly_review_threshold") thresholds.anomalyReviewThreshold = Number(rule.threshold_value);
+      if (rule.rule_key === "vendor_amount_multiplier_threshold") thresholds.vendorAmountMultiplierThreshold = Number(rule.threshold_value);
+      if (rule.rule_key === "bank_change_lookback_days") thresholds.bankChangeLookbackDays = Number(rule.threshold_value);
+    }
+
+    const { data: vendorInvoices, error: vendorInvoicesError } = await supabase
+      .from("invoices")
+      .select("invoice_id,department,subtotal,tax_amount,total_amount,date,po_number")
+      .eq("company_id", companyId)
+      .eq("vendor_id", invoice.vendor_id)
+      .neq("invoice_id", invoiceId);
+    if (vendorInvoicesError) throw vendorInvoicesError;
+    const historical = vendorInvoices ?? [];
+    const historicalAverage = historical.length ? historical.reduce((sum, item) => sum + Number(item.total_amount ?? 0), 0) / historical.length : 0;
+    const nearby = historical.filter((item) => Math.abs(new Date(item.date).getTime() - new Date(invoice.date).getTime()) <= 5 * 86400000);
+    const { data: currentAnalysis, error: currentAnalysisError } = await supabase
+      .from("invoice_analysis")
+      .select("duplicate_score,vendor_risk_snapshot")
+      .eq("invoice_id", invoiceId)
+      .maybeSingle();
+    if (currentAnalysisError) throw currentAnalysisError;
+
+    const signals: Array<{ type: string; description: string; weight: number }> = [];
+    const duplicateScore = Number(currentAnalysis?.duplicate_score ?? 0);
+    if (duplicateScore >= 40) signals.push({ type: "duplicate_invoice", description: `${Math.round(duplicateScore)}% similarity to a prior invoice from the same vendor`, weight: Math.round(duplicateScore * 0.4) });
+    if (historicalAverage > 0 && invoiceTotal / historicalAverage >= thresholds.vendorAmountMultiplierThreshold) {
+      const multiplier = invoiceTotal / historicalAverage;
+      signals.push({ type: "vendor_spend_spike", description: `Amount is ${multiplier.toFixed(1)}x this vendor's historical average`, weight: Math.min(30, Math.round(multiplier * 5)) });
+    }
+    if (historical.length <= 1 && invoiceTotal > 200000) signals.push({ type: "new_vendor_large_invoice", description: "Large invoice from a vendor with little prior history", weight: 20 });
+    if (!invoice.po_number && invoiceTotal > 500000) signals.push({ type: "missing_po_high_value", description: "High-value invoice has no purchase order", weight: 15 });
+    const { data: bankChanges, error: bankError } = await supabase
+      .from("vendor_bank_changes")
+      .select("changed_at")
+      .eq("company_id", companyId)
+      .eq("vendor_id", invoice.vendor_id)
+      .gte("changed_at", new Date(Date.now() - thresholds.bankChangeLookbackDays * 86400000).toISOString().slice(0, 10));
+    if (bankError) throw bankError;
+    if ((bankChanges ?? []).length) signals.push({ type: "post_bank_change_invoice", description: "Vendor bank details changed recently", weight: 25 });
+    if (invoiceTotal > 0 && invoiceTotal % 10000 === 0) signals.push({ type: "round_number_pattern", description: "Invoice amount is a suspiciously round number", weight: 10 });
+    if (nearby.length >= 2 && nearby.every((item) => Number(item.total_amount) <= 500000) && invoiceTotal <= 500000 && invoiceTotal + nearby.reduce((sum, item) => sum + Number(item.total_amount), 0) > 500000) {
+      signals.push({ type: "split_invoice_suspected", description: "Nearby invoices combine into a high-value spend pattern", weight: 20 });
+    }
+    if (invoice.submitted_at) {
+      const hour = new Date(invoice.submitted_at).getHours();
+      if (hour < 7 || hour >= 21) signals.push({ type: "off_hours_submission", description: `Submitted off-hours at ${String(hour).padStart(2, "0")}:00`, weight: 10 });
+    }
+    if (invoice.ocr_confidence !== null && Number(invoice.ocr_confidence) < 0.7) signals.push({ type: "low_ocr_confidence_needs_review", description: `OCR confidence is ${Math.round(Number(invoice.ocr_confidence) * 100)}%`, weight: 10 });
+    if (budgetImpact.found && budgetImpact.projectedUtilizationPct >= thresholds.budgetReviewThresholdPct) signals.push({ type: "abnormal_budget_impact", description: `Projected budget utilization reaches ${Math.round(budgetImpact.projectedUtilizationPct)}%`, weight: 15 });
+    const anomalyScore = Math.min(100, signals.reduce((sum, signal) => sum + signal.weight, 0));
+    const { error: updateError } = await supabase.from("invoice_analysis").update({ budget_impact: budgetImpact, anomaly_score: anomalyScore, anomaly_reasons: signals }).eq("invoice_id", invoiceId);
+    if (updateError) throw updateError;
+    const topReasons = signals.slice(0, 2).map((signal) => signal.description).join("; ");
+    return { summary: `Budget: ${budgetImpact.found ? `${Math.round(budgetImpact.projectedUtilizationPct)}% projected utilization` : "no matching budget"}. Anomaly score: ${anomalyScore}/100.${topReasons ? ` ${topReasons}` : " No anomaly signals detected."}` };
+  } catch (error) {
+    console.error("whatsapp-webhook: budget/anomaly enrichment failed", error instanceof Error ? error.message : error);
+    return { summary: "Budget and anomaly analysis is temporarily unavailable; prior invoice intelligence was preserved." };
+  }
+}
+
 // ---- Onboarding + OTP (Phase 4) -------------------------------------------
 
 interface OnboardingContext {
@@ -1301,7 +1435,8 @@ Deno.serve(async (req) => {
           );
           if (analysisResult.success) {
             const intelligenceResult = await enrichInvoiceIntelligence(supabase, ingestResult.invoiceId, linkedUser.company_id);
-            replyText = [analysisResult.summary, intelligenceResult.summary].join(NL);
+            const anomalyResult = await enrichBudgetAndAnomalies(supabase, ingestResult.invoiceId, linkedUser.company_id);
+            replyText = [analysisResult.summary, intelligenceResult.summary, anomalyResult.summary].join(NL);
           } else {
             replyText = `Invoice ${ingestResult.invoiceId} received. ${analysisResult.summary}`;
           }
