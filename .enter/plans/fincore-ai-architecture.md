@@ -818,3 +818,48 @@ The current active-user text path still returns a generic echo. Phase 11 lets an
 - [ ] A user linked to Company A cannot receive Company B's invoices, vendors, budgets, or transactions.
 - [ ] Q&A does not insert/update any business rows.
 - [ ] Lint, TypeScript, production build, backend deployment, and real WhatsApp Q&A responses pass.
+
+---
+
+## Phase 12 — Risk alerts + workflow actions
+
+### Context
+
+The system now produces decisions but does not let authorized users act on them or review a consolidated alert list. Phase 12 adds safe workflow commands and persisted `risk_alerts` records. Proactive scheduled delivery is separated from the first implementation because a scheduler must be configured explicitly; on-demand alert scanning and user-triggered actions are implemented first.
+
+### Design decisions
+
+- **Commands:** support `alerts`, `risk alerts`, `approve INV-...`, `review INV-...`, `defer INV-...`, `reject INV-...`, and `resolve alert <id>` from active WhatsApp users.
+- **Authorization:** only `admin`, `finance_manager`, or `department_head` may perform invoice actions or resolve alerts. Viewers/auditors can read alert summaries but cannot mutate workflow state. Authorization is enforced in the backend function from the linked `users.role`, never by client text.
+- **Action safety:** action commands require an existing invoice and an existing system recommendation; action is recorded in `invoice_actions` with previous/new status, performer, and reason. The invoice status changes only after authorization and validation. `Approve` → `Paid` is not automatic; use `Approved` only if the existing invoice status constraint supports it, otherwise preserve schema-compatible status semantics and record the action without inventing a new status.
+- **Alerts:** scan persisted `invoice_analysis`/`decisions` for open high-risk items (REVIEW/DEFER/REJECT, anomaly ≥ threshold, duplicate ≥ threshold, or high vendor risk), upsert one `risk_alerts` row per invoice/type, and return the five highest-severity alerts. Avoid duplicate alerts on repeated scans.
+- **Company isolation:** every invoice, decision, alert, and action query is scoped by the linked user's `company_id`; an invoice ID from another company is treated as not found.
+- **No scheduler claim:** implement on-demand `alerts` first. A scheduled backend trigger/template remains a follow-up once the project has an approved scheduler configuration and WhatsApp message-template handling outside the 24-hour window.
+
+### Files
+
+- `supabase/functions/whatsapp-webhook/index.ts` — command parsing, authorization, alert scan/upsert, action recording, and WhatsApp responses.
+- `docs/demo-script.md` — Phase 12 action/authorization/alert walkthrough.
+- `.enter/plans/fincore-ai-architecture.md` — Phase 12 checklist and verification evidence.
+
+### Implementation checklist (Phase 12)
+
+- [ ] Add on-demand alert scanning with bounded, company-scoped results and idempotent `risk_alerts` writes.
+- [ ] Add `alerts`/`risk alerts` routing for active users.
+- [ ] Add strict invoice action parsing and existing-invoice/recommendation checks.
+- [ ] Enforce admin/finance_manager/department_head authorization in the backend.
+- [ ] Insert `invoice_actions` audit rows and apply only schema-compatible status changes.
+- [ ] Add alert resolution authorization and audit-safe update behavior.
+- [ ] Return safe responses for unknown invoice IDs, unauthorized roles, and already-actioned invoices.
+- [ ] Deploy and append the Phase 12 demo walkthrough.
+
+### Verification checklist (Phase 12)
+
+- [ ] `alerts` returns only the linked company's high-risk invoices and creates no duplicate alert rows on repeat.
+- [ ] An authorized admin can execute a valid action and an `invoice_actions` row records the previous/new status and performer.
+- [ ] A viewer/auditor receives an authorization error and creates no action row.
+- [ ] An invoice ID from another company cannot be acted on or exposed.
+- [ ] Unknown/invalid commands do not mutate invoices, decisions, alerts, or actions.
+- [ ] Resolving an alert requires an authorized role and sets `resolved_at`/`resolved_by` only for the linked company.
+- [ ] Invoice status changes remain within the existing database constraint values.
+- [ ] Lint, TypeScript, production build, backend deployment, and live WhatsApp alert/action tests pass.
