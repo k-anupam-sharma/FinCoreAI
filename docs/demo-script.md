@@ -259,3 +259,23 @@ select invoice_id, budget_impact, anomaly_score, anomaly_reasons
 
 The response reports projected department utilization when a matching budget exists, otherwise explicitly says no budget was found. Anomaly reasons are named signals with weights; no approval or rejection is issued in this phase.
 
+---
+
+# Demo script — Phase 10: Deterministic decision engine
+
+After the budget/anomaly summary, FinCore sends a deterministic recommendation:
+
+- `APPROVE` when no review/defer/reject rule fires.
+- `REVIEW` for high duplicate similarity, critical validation, high vendor risk, recent bank changes, budget review threshold, or anomaly threshold.
+- `DEFER` at/above the budget defer threshold.
+- `REJECT` when at least two critical validation errors are present.
+
+```sql
+select decision_id, invoice_id, recommendation, reasoning,
+       confidence_score, decided_by
+  from decisions
+ where invoice_id = '<invoice id>';
+```
+
+The invoice remains `Pending`; the decision is an auditable recommendation only.
+

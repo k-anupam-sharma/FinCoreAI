@@ -756,13 +756,13 @@ Phases 7–9 now persist validation, duplicate similarity, vendor risk, budget i
 
 ### Implementation checklist (Phase 10)
 
-- [ ] Add deterministic decision evaluation matching `decisionEngine.ts` precedence and labels.
-- [ ] Load validation, duplicate, vendor-risk, budget, and anomaly facts from the existing invoice records.
-- [ ] Load company thresholds with the same safe defaults used in Phase 9.
-- [ ] Upsert exactly one `decisions` row with recommendation, action-derived label, reasons, and `decided_by='system_rules'`.
-- [ ] Keep invoice status unchanged and do not perform approval/rejection side effects.
-- [ ] Send a WhatsApp summary with action and explainable reasons.
-- [ ] Deploy and append the Phase 10 demo walkthrough.
+- [x] Add deterministic decision evaluation matching `decisionEngine.ts` precedence and labels.
+- [x] Load validation, duplicate, vendor-risk, budget, and anomaly facts from the existing invoice records.
+- [x] Load company thresholds with the same safe defaults used in Phase 9.
+- [x] Upsert exactly one `decisions` row with recommendation, action-derived label, reasons, and `decided_by='system_rules'`.
+- [x] Keep invoice status unchanged and do not perform approval/rejection side effects.
+- [x] Send a WhatsApp summary with action and explainable reasons.
+- [x] Deploy and append the Phase 10 demo walkthrough.
 
 ### Verification checklist (Phase 10)
 

@@ -847,6 +847,92 @@ async function enrichBudgetAndAnomalies(
   }
 }
 
+type DecisionAction = "APPROVE" | "REVIEW" | "DEFER" | "REJECT";
+
+function decideInvoiceFromFacts(facts: {
+  validation: Record<string, unknown>;
+  duplicateScore: number;
+  vendorRisk: string;
+  recentBankChange: boolean;
+  budgetImpact: Record<string, unknown>;
+  anomalyScore: number;
+  thresholds: typeof DEFAULT_ANALYSIS_THRESHOLDS;
+}): { action: DecisionAction; recommendation: string; reasons: string[] } {
+  const reasons: string[] = [];
+  const criticalIssues = Array.isArray(facts.validation.errors) ? facts.validation.errors as string[] : [];
+  if (facts.duplicateScore >= 70) {
+    reasons.push(`Duplicate similarity score is ${Math.round(facts.duplicateScore)}%, at or above the review threshold (70%)`);
+    return { action: "REVIEW", recommendation: "Hold - Duplicate Suspected", reasons };
+  }
+  if (criticalIssues.length >= 2) return { action: "REJECT", recommendation: "Reject", reasons: criticalIssues };
+  if (criticalIssues.length === 1) return { action: "REVIEW", recommendation: "Flag for Review", reasons: criticalIssues };
+  if (facts.vendorRisk === "High") return { action: "REVIEW", recommendation: "Flag for Review", reasons: ["Vendor's computed risk profile is High"] };
+  if (facts.recentBankChange) return { action: "REVIEW", recommendation: "Flag for Review", reasons: ["Vendor changed bank account details recently"] };
+  const utilization = Number(facts.budgetImpact.projectedUtilizationPct ?? 0);
+  if (facts.budgetImpact.found === true && utilization >= facts.thresholds.budgetDeferThresholdPct) {
+    reasons.push(`Projected budget utilization would reach ${Math.round(utilization)}%, at or above the defer threshold (${facts.thresholds.budgetDeferThresholdPct}%)`);
+    return { action: "DEFER", recommendation: "Escalate", reasons };
+  }
+  if (facts.budgetImpact.found === true && utilization >= facts.thresholds.budgetReviewThresholdPct) {
+    reasons.push(`Projected budget utilization would reach ${Math.round(utilization)}%, at or above the review threshold (${facts.thresholds.budgetReviewThresholdPct}%)`);
+    return { action: "REVIEW", recommendation: "Flag for Review", reasons };
+  }
+  if (facts.anomalyScore >= facts.thresholds.anomalyReviewThreshold) {
+    reasons.push(`Anomaly score is ${Math.round(facts.anomalyScore)}, at or above the review threshold (${facts.thresholds.anomalyReviewThreshold})`);
+    return { action: "REVIEW", recommendation: "Flag for Review", reasons };
+  }
+  return { action: "APPROVE", recommendation: "Approve", reasons: ["No critical validation issues, vendor risk is acceptable, budget impact is manageable, and the anomaly score is low"] };
+}
+
+async function createInvoiceDecision(
+  supabase: SupabaseClient,
+  invoiceId: string,
+  companyId: string,
+): Promise<{ summary: string }> {
+  try {
+    const { data: analysis, error: analysisError } = await supabase
+      .from("invoice_analysis")
+      .select("validation_result,duplicate_score,vendor_risk_snapshot,budget_impact,anomaly_score")
+      .eq("invoice_id", invoiceId)
+      .maybeSingle();
+    if (analysisError) throw analysisError;
+    if (!analysis) throw new Error("Invoice analysis not found for decision");
+    const vendorRisk = (analysis.vendor_risk_snapshot ?? {}) as Record<string, unknown>;
+    const budgetImpact = (analysis.budget_impact ?? {}) as Record<string, unknown>;
+    const { data: rules, error: rulesError } = await supabase.from("decision_rules_config").select("rule_key,threshold_value").eq("company_id", companyId);
+    if (rulesError) throw rulesError;
+    const thresholds = { ...DEFAULT_ANALYSIS_THRESHOLDS };
+    for (const rule of rules ?? []) {
+      if (rule.rule_key === "budget_review_threshold" || rule.rule_key === "budget_review_threshold_pct") thresholds.budgetReviewThresholdPct = Number(rule.threshold_value);
+      if (rule.rule_key === "budget_defer_threshold" || rule.rule_key === "budget_defer_threshold_pct") thresholds.budgetDeferThresholdPct = Number(rule.threshold_value);
+      if (rule.rule_key === "anomaly_review_threshold") thresholds.anomalyReviewThreshold = Number(rule.threshold_value);
+    }
+    const decision = decideInvoiceFromFacts({
+      validation: (analysis.validation_result ?? {}) as Record<string, unknown>,
+      duplicateScore: Number(analysis.duplicate_score ?? 0),
+      vendorRisk: String(vendorRisk.computed_risk ?? "Low"),
+      recentBankChange: vendorRisk.recent_bank_change === true,
+      budgetImpact,
+      anomalyScore: Number(analysis.anomaly_score ?? 0),
+      thresholds,
+    });
+    const { error: decisionError } = await supabase.from("decisions").upsert({
+      decision_id: `DEC-${invoiceId.replace(/^INV-/, "")}`,
+      invoice_id: invoiceId,
+      company_id: companyId,
+      recommendation: decision.recommendation,
+      reasoning: decision.reasons.join(" | "),
+      confidence_score: decision.action === "APPROVE" ? 0.9 : 0.8,
+      decided_by: "system_rules",
+    }, { onConflict: "decision_id" });
+    if (decisionError) throw decisionError;
+    return { summary: `Decision: ${decision.action} (${decision.recommendation}). ${decision.reasons.join(" ")}` };
+  } catch (error) {
+    console.error("whatsapp-webhook: decision engine failed", error instanceof Error ? error.message : error);
+    return { summary: "The recommendation is temporarily unavailable; the invoice remains safely Pending." };
+  }
+}
+
 // ---- Onboarding + OTP (Phase 4) -------------------------------------------
 
 interface OnboardingContext {
@@ -1436,7 +1522,8 @@ Deno.serve(async (req) => {
           if (analysisResult.success) {
             const intelligenceResult = await enrichInvoiceIntelligence(supabase, ingestResult.invoiceId, linkedUser.company_id);
             const anomalyResult = await enrichBudgetAndAnomalies(supabase, ingestResult.invoiceId, linkedUser.company_id);
-            replyText = [analysisResult.summary, intelligenceResult.summary, anomalyResult.summary].join(NL);
+            const decisionResult = await createInvoiceDecision(supabase, ingestResult.invoiceId, linkedUser.company_id);
+            replyText = [analysisResult.summary, intelligenceResult.summary, anomalyResult.summary, decisionResult.summary].join(NL);
           } else {
             replyText = `Invoice ${ingestResult.invoiceId} received. ${analysisResult.summary}`;
           }
