@@ -1046,13 +1046,13 @@ The current Qwen layer only receives facts from a fixed keyword router, so it ca
 
 ### Implementation checklist
 
-- [ ] Define dataset/table and column allowlists with company-scope metadata.
-- [ ] Add strict Qwen query-plan classifier with `in_scope` and read-only operation schema.
-- [ ] Validate table, columns, filters, grouping, sorting, aggregation, limit, and company scope before any query.
-- [ ] Execute validated plans only through Supabase client query methods; never raw SQL or model-provided table access.
-- [ ] Send bounded returned facts to Qwen for a concise answer with explicit dataset-only guardrails.
-- [ ] Preserve existing workflow commands, numeric menu behavior, forecast disclaimers, and action authorization.
-- [ ] Deploy and append the guarded Q&A test walkthrough.
+- [x] Define dataset/table and column allowlists with company-scope metadata.
+- [x] Add strict Qwen query-plan classifier with `in_scope` and read-only operation schema.
+- [x] Validate table, columns, filters, grouping, sorting, aggregation, limit, and company scope before any query.
+- [x] Execute validated plans only through Supabase client query methods; never raw SQL or model-provided table access.
+- [x] Send bounded returned facts to Qwen for a concise answer with explicit dataset-only guardrails.
+- [x] Preserve existing workflow commands, numeric menu behavior, forecast disclaimers, and action authorization.
+- [x] Deploy and append the guarded Q&A test walkthrough.
 
 ### Verification checklist
 

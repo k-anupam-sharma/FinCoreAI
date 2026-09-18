@@ -1050,6 +1050,117 @@ async function classifyNaturalLanguageCommand(text: string): Promise<NaturalLang
   }
 }
 
+type DatasetPlan = {
+  in_scope: boolean;
+  table: string | null;
+  columns: string[];
+  filters: Array<{ column: string; operator: "eq" | "ilike" | "gte" | "lte"; value: string | number }>;
+  aggregate: "none" | "count" | "sum";
+  aggregate_column: string | null;
+  group_by: string | null;
+  sort_column: string | null;
+  sort_direction: "asc" | "desc";
+  limit: number;
+};
+
+const DATASET_ALLOWLIST: Record<string, { columns: Set<string>; companyScoped: boolean }> = {
+  companies: { columns: new Set(["company_id", "name", "industry", "country", "plan_tier"]), companyScoped: true },
+  users: { columns: new Set(["user_id", "name", "role", "account_status", "created_at"]), companyScoped: true },
+  vendors: { columns: new Set(["vendor_id", "name", "category", "risk_profile", "status"]), companyScoped: true },
+  invoices: { columns: new Set(["invoice_id", "vendor_id", "department", "subtotal", "tax_amount", "total_amount", "currency", "date", "due_date", "status", "po_number", "ocr_confidence"]), companyScoped: true },
+  payments: { columns: new Set(["payment_id", "invoice_id", "amount", "status", "payment_method", "payment_date"]), companyScoped: true },
+  budgets: { columns: new Set(["budget_id", "department", "period", "allocated", "spent", "remaining"]), companyScoped: true },
+  transactions: { columns: new Set(["transaction_id", "date", "type", "category", "amount"]), companyScoped: true },
+  decisions: { columns: new Set(["decision_id", "invoice_id", "recommendation", "reasoning", "confidence_score", "timestamp"]), companyScoped: true },
+  risk_alerts: { columns: new Set(["id", "alert_type", "severity", "related_invoice_id", "related_vendor_id", "message", "status", "created_at", "resolved_at"]), companyScoped: true },
+  forecast_records: { columns: new Set(["id", "generated_at", "horizon_days", "projected_inflow", "projected_outflow", "projected_net", "projected_cash_position", "disclaimer"]), companyScoped: true },
+  invoice_analysis: { columns: new Set(["invoice_id", "extracted_fields", "validation_result", "duplicate_score", "duplicate_evidence", "vendor_risk_snapshot", "budget_impact", "anomaly_score", "anomaly_reasons", "created_at"]), companyScoped: false },
+};
+
+function normalizeDatasetPlan(value: Record<string, unknown>): DatasetPlan | null {
+  const table = typeof value.table === "string" && DATASET_ALLOWLIST[value.table] ? value.table : null;
+  const config = table ? DATASET_ALLOWLIST[table] : null;
+  const rawColumns = Array.isArray(value.columns) ? value.columns.filter((column): column is string => typeof column === "string") : [];
+  const columns = config ? rawColumns.filter((column) => config.columns.has(column)).slice(0, 12) : [];
+  const rawFilters = Array.isArray(value.filters) ? value.filters : [];
+  const filters = config ? rawFilters.map((entry) => {
+    const filter = entry && typeof entry === "object" ? entry as Record<string, unknown> : {};
+    const column = typeof filter.column === "string" && config.columns.has(filter.column) ? filter.column : null;
+    const operator = filter.operator;
+    const value = typeof filter.value === "string" || typeof filter.value === "number" ? filter.value : null;
+    return column && (operator === "eq" || operator === "ilike" || operator === "gte" || operator === "lte") && value !== null ? { column, operator, value } : null;
+  }).filter((entry): entry is DatasetPlan["filters"][number] => entry !== null).slice(0, 4) : [];
+  const rawLimit = Number(value.limit);
+  return {
+    in_scope: value.in_scope === true,
+    table,
+    columns,
+    filters,
+    aggregate: value.aggregate === "count" || value.aggregate === "sum" ? value.aggregate : "none",
+    aggregate_column: config && typeof value.aggregate_column === "string" && config.columns.has(value.aggregate_column) ? value.aggregate_column : null,
+    group_by: config && typeof value.group_by === "string" && config.columns.has(value.group_by) ? value.group_by : null,
+    sort_column: config && typeof value.sort_column === "string" && config.columns.has(value.sort_column) ? value.sort_column : null,
+    sort_direction: value.sort_direction === "asc" ? "asc" : "desc",
+    limit: Number.isFinite(rawLimit) ? Math.min(100, Math.max(1, Math.floor(rawLimit))) : 50,
+  };
+}
+
+async function classifyDatasetPlan(question: string): Promise<DatasetPlan | null> {
+  if (!AI_API_TOKEN) return null;
+  try {
+    const response = await fetchWithTimeout(`${AI_API_BASE}/code/api/v1/ai/chat/completions`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${AI_API_TOKEN}`, "Content-Type": "application/json", "X-Enter-Project-ID": AI_PROJECT_ID, "X-Session-ID": `dataset-plan-${crypto.randomUUID()}` },
+      body: JSON.stringify({
+        model: OCR_MODEL,
+        stream: false,
+        temperature: 0,
+        max_tokens: 500,
+        messages: [
+          { role: "system", content: "Create a read-only FinCore dataset query plan as JSON only. Allowed tables are companies, users, vendors, invoices, payments, budgets, transactions, decisions, invoice_analysis, risk_alerts, forecast_records. Use only fields needed to answer. Set in_scope false for non-financial or external questions. Never request mutations, joins, raw SQL, credentials, or another company." },
+          { role: "user", content: question },
+        ],
+      }),
+    });
+    const data = await response.json();
+    const content = data?.choices?.[0]?.message?.content;
+    const parsed = typeof content === "string" ? parseJsonObject(content) : null;
+    return parsed ? normalizeDatasetPlan(parsed) : null;
+  } catch (error) {
+    console.error("whatsapp-webhook: dataset plan failed", error instanceof Error ? error.message : error);
+    return null;
+  }
+}
+
+async function answerDatasetQuestion(supabase: SupabaseClient, companyId: string, question: string): Promise<string | null> {
+  const plan = await classifyDatasetPlan(question);
+  if (!plan || !plan.in_scope || !plan.table || !plan.columns.length) return null;
+  const config = DATASET_ALLOWLIST[plan.table];
+  let query = supabase.from(plan.table).select(plan.columns.join(","));
+  if (config.companyScoped) query = query.eq("company_id", companyId);
+  if (plan.table === "invoice_analysis") {
+    const { data: scopedInvoices, error: scopedInvoiceError } = await supabase.from("invoices").select("invoice_id").eq("company_id", companyId).limit(500);
+    if (scopedInvoiceError) throw scopedInvoiceError;
+    const ids = (scopedInvoices ?? []).map((row) => row.invoice_id);
+    if (!ids.length) return "No data was found in your company dataset.";
+    query = query.in("invoice_id", ids);
+  }
+  for (const filter of plan.filters) {
+    if (filter.operator === "eq") query = query.eq(filter.column, filter.value);
+    if (filter.operator === "ilike") query = query.ilike(filter.column, `%${String(filter.value).replace(/[%_]/g, "")}%`);
+    if (filter.operator === "gte") query = query.gte(filter.column, filter.value);
+    if (filter.operator === "lte") query = query.lte(filter.column, filter.value);
+  }
+  if (plan.sort_column) query = query.order(plan.sort_column, { ascending: plan.sort_direction === "asc" });
+  const { data, error } = await query.limit(plan.limit);
+  if (error) throw error;
+  const rows = data ?? [];
+  if (!rows.length) return "No matching records were found in your company dataset.";
+  const aggregateValue = plan.aggregate === "count" ? rows.length : plan.aggregate === "sum" && plan.aggregate_column ? rows.reduce((sum, row) => sum + Number(row[plan.aggregate_column!] ?? 0), 0) : null;
+  const facts = JSON.stringify({ table: plan.table, row_count: rows.length, aggregate: aggregateValue, rows }, null, 2).slice(0, 18000);
+  return explainFinancialFacts(question, `The following are the only authorized company-scoped database facts:\n${facts}`);
+}
+
 async function answerFinancialQuestion(supabase: SupabaseClient, companyId: string, question: string): Promise<string> {
   const lower = question.toLowerCase();
   const currentPeriod = new Date().toISOString().slice(0, 7);
@@ -1859,7 +1970,8 @@ Deno.serve(async (req) => {
             } else if (intent?.intent === "menu") {
               replyText = MENU_TEXT;
             } else {
-              replyText = await answerFinancialQuestion(supabase, linkedUser.company_id, intent?.question ?? content);
+              const qnaQuestion = intent?.question ?? content;
+              replyText = await answerDatasetQuestion(supabase, linkedUser.company_id, qnaQuestion) ?? await answerFinancialQuestion(supabase, linkedUser.company_id, qnaQuestion);
             }
           }
         }

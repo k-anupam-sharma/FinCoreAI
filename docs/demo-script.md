@@ -362,3 +362,11 @@ How much did we spend this month?
 
 Qwen only classifies the request into an allowlisted intent. The existing backend handlers still enforce company scope, role authorization, invoice/alert ownership, and database validation. Invalid or unavailable AI classification falls back to the deterministic handlers.
 
+---
+
+# Guarded dataset-wide Q&A
+
+Qwen may answer broader questions about approved FinCore datasets: invoices, vendors, payments, budgets, transactions, decisions, alerts, forecasts, users, and companies. It first creates a validated read-only query plan; the backend applies company scope, allowed-table/column rules, row limits, and no-mutation checks before facts are sent for explanation.
+
+Questions outside the datasets, such as weather or general trivia, are rejected. The model cannot request raw SQL, credentials, another company, or data outside the approved tables.
+
