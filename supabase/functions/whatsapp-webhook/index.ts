@@ -991,6 +991,14 @@ async function handleNumericMenu(supabase: SupabaseClient, companyId: string, te
   return null;
 }
 
+async function clearChatHistory(supabase: SupabaseClient, sessionId: string): Promise<string> {
+  const { error: deleteError } = await supabase.from("conversation_messages").delete().eq("session_id", sessionId);
+  if (deleteError) throw deleteError;
+  const { error: resetError } = await supabase.from("conversation_sessions").update({ state: "active", context: {}, last_message_at: new Date().toISOString() }).eq("id", sessionId);
+  if (resetError) throw resetError;
+  return "FinCore chat history has been cleared from the backend. Your invoices, files, analyses, account, and financial data were not changed. To remove the messages already visible in WhatsApp, delete this chat from WhatsApp too.";
+}
+
 interface NaturalLanguageIntent {
   intent: "menu" | "alerts" | "workflow_action" | "forecast" | "qna" | "unknown";
   action: "approve" | "review" | "defer" | "reject" | null;
@@ -1831,8 +1839,12 @@ Deno.serve(async (req) => {
           const { data: linkedUser, error: linkedUserError } = await supabase.from("users").select("company_id,role").eq("user_id", linkedAccount.user_id).maybeSingle();
           if (linkedUserError) throw linkedUserError;
           if (!linkedUser) throw new Error("Linked WhatsApp account has no user record");
-          const numericReply = await handleNumericMenu(supabase, linkedUser.company_id, content);
-          const forecastReply = numericReply ?? await handleForecastCommand(supabase, linkedUser.company_id, content);
+          const normalizedContent = content.trim().toLowerCase();
+          if (/^(clear|clear chat|clear history|delete chat|delete history)$/.test(normalizedContent)) {
+            replyText = await clearChatHistory(supabase, sessionId);
+          } else {
+            const numericReply = await handleNumericMenu(supabase, linkedUser.company_id, content);
+            const forecastReply = numericReply ?? await handleForecastCommand(supabase, linkedUser.company_id, content);
           const workflowReply = forecastReply ?? await handleWorkflowCommand(supabase, linkedAccount.user_id, linkedUser.company_id, linkedUser.role, content);
           if (workflowReply) {
             replyText = workflowReply;
@@ -1850,7 +1862,8 @@ Deno.serve(async (req) => {
               replyText = await answerFinancialQuestion(supabase, linkedUser.company_id, intent?.question ?? content);
             }
           }
-        } else {
+        }
+      } else {
           replyText = buildReply(messageType, content);
         }
       }
