@@ -949,3 +949,46 @@ The complete backend path now spans onboarding, recovery, media storage, OCR, de
 - [ ] Source/build secret scan finds no access tokens or service-role keys.
 - [ ] Production build and backend deployment pass; query/result sizes stay within documented caps.
 - [ ] Database counts and company partitions match the pre-hardening baseline except intentional live rows.
+
+---
+
+## Natural-language command agent — general English intent layer
+
+### Context
+
+The current workflow parser recognizes exact forms such as `alerts` and `review INV-...`. Users should be able to express the same requests naturally: “show me the open risks,” “can you review invoice INV-123,” “please defer that invoice,” or “what are the cash-flow projections?” This adds an AI intent classifier in front of the existing controlled handlers; it does not give the model direct database or authorization authority.
+
+### Design decisions
+
+- **Model:** reuse the enabled Qwen 3.7 Plus Enter AI integration with `stream:false`, temperature 0, and a strict JSON-only response.
+- **Intent schema:** classifier may return only `menu`, `alerts`, `workflow_action`, `forecast`, `qna`, or `unknown`, plus `action`, `invoice_id`, `alert_id`, `horizon_days`, and `question` fields. Unknown/invalid JSON falls back to the existing deterministic router.
+- **Security boundary:** the agent only parses language. The backend re-validates invoice/alert ownership, allowed action, user role, and company scope through the existing `handleWorkflowCommand`; no model-provided authorization or SQL is trusted.
+- **Cost/latency:** deterministic exact commands run first. The classifier runs only when those handlers and forecast parsing do not recognize the text, avoiding an extra AI call for common commands.
+- **Q&A reuse:** classified `qna` requests are passed to the existing controlled `answerFinancialQuestion`; Qwen remains limited to fact-grounded explanation there.
+
+### Files
+
+- `supabase/functions/whatsapp-webhook/index.ts` — strict intent classifier, canonical command construction, and active-user routing.
+- `docs/demo-script.md` — general-English examples and invalid-intent fallback.
+- `.enter/plans/fincore-ai-architecture.md` — implementation and verification checklist.
+
+### Implementation checklist
+
+- [ ] Add `classifyNaturalLanguageCommand` using Qwen and the fixed JSON intent schema.
+- [ ] Validate classifier output against an allowlist and normalize invoice/alert IDs and forecast horizons.
+- [ ] Run deterministic workflow/forecast handlers before the classifier.
+- [ ] Route `alerts`, `workflow_action`, and `forecast` intents into existing backend handlers; route `qna` into controlled Q&A.
+- [ ] Preserve backend authorization and company-isolation checks for every AI-parsed action.
+- [ ] Return a safe supported-command message for unknown or malformed intents.
+- [ ] Deploy and append general-English examples to the demo script.
+
+### Verification checklist
+
+- [ ] “Show me all open risk alerts” maps to the existing alert scan.
+- [ ] “Please review invoice INV-123” maps to the existing review action and still enforces role/company authorization.
+- [ ] “Defer invoice INV-123 until next week” maps to `defer` without trusting the extra natural-language reason as authorization.
+- [ ] “Give me the 90-day cash-flow projection” maps to the existing forecast handler.
+- [ ] “How much did we spend this month?” reaches controlled Q&A and never arbitrary SQL.
+- [ ] Malformed/unsupported model output falls back safely without a database mutation.
+- [ ] AI timeout/credit failure leaves deterministic exact commands and existing Q&A behavior working.
+- [ ] Lint, TypeScript, production build, backend deployment, and real WhatsApp natural-language tests pass.
