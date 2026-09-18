@@ -1020,3 +1020,48 @@ The main menu currently displays numeric options, but a bare number such as `1` 
 - [x] Return upload guidance for option 1 and Q&A guidance for option 7.
 - [x] Preserve option 8 help and `menu` behavior.
 - [x] Deploy and verify the numeric routing implementation with lint, TypeScript, and production build.
+
+---
+
+## Guarded dataset-wide Q&A agent
+
+### Context
+
+The current Qwen layer only receives facts from a fixed keyword router, so it cannot answer many legitimate questions about the imported datasets. This change gives Qwen broader dataset question coverage without granting it arbitrary database access or allowing answers outside FinCore data.
+
+### Design decisions
+
+- **Two-step AI boundary:** Qwen first returns a strict JSON query plan with `in_scope`, dataset/table, selected columns, filters, aggregation, grouping, sort, and limit. The backend validates the plan against hardcoded allowlists, executes read-only Supabase client queries, then sends only returned facts to Qwen for the final answer.
+- **Allowed datasets:** companies, users, vendors, invoices, payments, budgets, transactions, decisions, invoice_analysis, risk_alerts, and forecast_records. Reserved/auth/storage tables, arbitrary tables, and schema discovery are never exposed.
+- **Allowed columns:** define per-table column allowlists; reject any unknown column, join, mutation, raw SQL, subquery, or unbounded request. Cap rows at 100 and response facts at a bounded serialized size.
+- **Company guardrail:** automatically add `company_id = linkedUser.company_id` for every company-scoped table. For tables without company_id, access only through explicitly approved scoped relationships or return unsupported; never trust a model-provided company filter.
+- **Out-of-scope guardrail:** if Qwen returns `in_scope=false`, no database query occurs and the bot replies that it can only answer questions about FinCore’s financial datasets. Malformed plans, timeouts, or validation failures use the existing safe fallback.
+- **Fact-only answer:** final Qwen prompt states that supplied facts are authoritative, missing values must be reported as unavailable, and external/general knowledge must not be added. Preserve financial disclaimers for forecasts and estimates.
+
+### Files
+
+- `supabase/functions/whatsapp-webhook/index.ts` — strict query-plan schema, validation, controlled reads, fact payload, and final answer path.
+- `docs/demo-script.md` — broad in-scope/out-of-scope Q&A and company-isolation tests.
+- `.enter/plans/fincore-ai-architecture.md` — checklist and security invariants.
+
+### Implementation checklist
+
+- [ ] Define dataset/table and column allowlists with company-scope metadata.
+- [ ] Add strict Qwen query-plan classifier with `in_scope` and read-only operation schema.
+- [ ] Validate table, columns, filters, grouping, sorting, aggregation, limit, and company scope before any query.
+- [ ] Execute validated plans only through Supabase client query methods; never raw SQL or model-provided table access.
+- [ ] Send bounded returned facts to Qwen for a concise answer with explicit dataset-only guardrails.
+- [ ] Preserve existing workflow commands, numeric menu behavior, forecast disclaimers, and action authorization.
+- [ ] Deploy and append the guarded Q&A test walkthrough.
+
+### Verification checklist
+
+- [ ] “Which invoices from July exceeded INR 100000?” returns scoped database facts.
+- [ ] “Which vendor had the most payments?” returns a bounded company-scoped answer.
+- [ ] “List departments over budget and their remaining amounts” returns budget facts.
+- [ ] “What is the invoice with number INV-123?” uses invoice/analysis data when available.
+- [ ] “What is the weather today?” is rejected as out of scope without a database query.
+- [ ] A plan requesting another company, a forbidden table, mutation, unknown column, or >100 rows is rejected.
+- [ ] AI timeout/malformed plan/fact answer falls back safely without mutations.
+- [ ] Existing `alerts`, invoice actions, forecasts, menu numbers, and clear-chat behavior remain unchanged.
+- [ ] Lint, TypeScript, production build, backend deployment, and in-scope/out-of-scope WhatsApp tests pass.
