@@ -32,7 +32,7 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-const GRAPH_API_VERSION = "v21.0";
+const GRAPH_API_VERSION = "v22.0";
 
 async function fetchWithTimeout(input: RequestInfo | URL, init: RequestInit = {}, timeoutMs = 15000): Promise<Response> {
   const controller = new AbortController();
