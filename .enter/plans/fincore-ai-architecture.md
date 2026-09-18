@@ -349,3 +349,66 @@ Enter Cloud provisioning is still failing (`Enter Cloud failed to start`) as of 
 - **`src/lib/fincore/__tests__/*.test.ts`** (Vitest, `pnpm test`) — 35 tests, several run against the real labeled dataset (`demo_anomaly_answer_key`, a known vendor bank-change, a known duplicate-invoice pair).
 
 **Explicitly not real yet, and clearly labeled as such in the UI:** no real WhatsApp/Meta connection (browser chat only), no database (localStorage only, per-browser), no OCR/AI (new invoices are entered via guided prompts, not scanned; explanations are templated, not LLM-generated), no real OTP email delivery (demo code is shown inline in the chat). All of this remains blocked on Enter Cloud (+ AI Capability) and is unchanged from the rest of this plan — resume there once Enter Cloud provisions successfully.
+
+---
+
+## Enter Cloud is live — Phase 1–2 verified, Phase 3 plan below
+
+Enter Cloud provisioned successfully. Verified against the real backend (not a plan claim):
+
+- All 24 tables from `docs/database-schema.sql` exist with RLS enabled and the designed policies (`supabase_get_table_schema`).
+- Every seeded table's row count matches its source CSV exactly (companies 5, users 120, vendors 110, vendor_bank_changes 16, invoices 337, payments 321, budgets 900, transactions 5460, decisions 300, auth_log 515, demo_anomaly_answer_key 109, gl_accounts 12).
+- Spot-checked FK joins (invoice → vendor → company) resolve correctly, and `subtotal + tax_amount = total_amount` holds for all 337 invoices (0 mismatches).
+
+Phase 1–2 of the original milestone list are complete. The client-side stopgap (`/assistant`, `src/lib/fincore/*`, `src/data/fincoreStore.ts`) stays as-is for now — it is a self-contained demo the user already has, and nothing in Phase 3 requires touching it. Phase 3 below moves to the real backend, per the original milestone order.
+
+### Context for Phase 3
+
+The user confirmed they have real Meta WhatsApp Cloud API credentials ready. Per the original milestone order ("Phase 3: WhatsApp webhook + basic message handling — signature verification, conversation_sessions bootstrap, echo/menu only"), this phase is intentionally narrow: it does **not** yet wire up onboarding, invoice analysis, or NL Q&A — those are later milestones and will extend this same webhook's routing once they have real DB-backed implementations (the current `/assistant` demo logic is client-only and is not the source that gets ported in; each later phase gets a fresh, backend-function-native implementation per the architecture in this plan).
+
+### Design decisions
+
+- **`whatsapp-send` becomes a shared module, not a separately deployed function.** The original API list (§9) proposed it as its own deployed function. Since Deno edge functions support plain relative imports, a shared `supabase/functions/_shared/whatsapp.ts` module (exporting `sendWhatsAppText()`) is imported directly by any function that needs to send — the webhook now, `invoice-analyze`/`alerts-scan`/`invoice-action` etc. in later phases. This avoids an extra network hop and avoids passing service keys between functions, with no loss of reusability (still one implementation, many call sites).
+- **Signature verification** uses `WHATSAPP_APP_SECRET` to compute HMAC-SHA256 over the raw request body and compare against the `X-Hub-Signature-256` header, per Meta's webhook spec. Requests that fail this check are rejected before any DB write.
+- **`conversation_sessions` bootstrap**: every inbound message upserts a session keyed by `wa_id` (create with `state='new'` if none exists, else load and touch `last_message_at`). Identity resolution against `whatsapp_accounts` is looked up but not required to exist yet — that linkage is created starting Phase 4 (onboarding). This keeps Phase 3 decoupled from onboarding logic.
+- **Echo/menu-only reply logic** (matches the milestone's explicit scope): if the inbound text matches hi/hello/menu/help (case-insensitive), reply with the static main menu list (§4 of this plan); for any other text, reply with a plain echo plus a note that full processing arrives in a later phase; for image/document messages, acknowledge receipt without processing. Every inbound and outbound message is persisted to `conversation_messages`.
+- **`verify_jwt = false`** on `whatsapp-webhook` only (Meta calls it unauthenticated); no other function changes this default.
+
+### Files
+
+- `supabase/functions/_shared/cors.ts` — shared CORS headers (per `enter_cloud` skill convention).
+- `supabase/functions/_shared/whatsapp.ts` — `verifyMetaSignature()`, `sendWhatsAppText()`, and minimal Graph API payload types.
+- `supabase/functions/whatsapp-webhook/index.ts` — GET verification handshake; POST: verify signature → parse `entry[].changes[].value.messages[]` → bootstrap `conversation_sessions` → persist inbound `conversation_messages` → echo/menu reply → persist outbound `conversation_messages` → send via `sendWhatsAppText()`.
+- `supabase/config.toml` — add `[functions.whatsapp-webhook]` with `verify_jwt = false`.
+- `docs/demo-script.md` (new) — curl examples for the GET handshake and a signed POST payload, plus the negative case (bad signature → rejected, no DB row written).
+
+### Secrets (collected via `supabase_add_secret` before writing code)
+
+`WHATSAPP_ACCESS_TOKEN`, `WHATSAPP_PHONE_NUMBER_ID`, `WHATSAPP_VERIFY_TOKEN`, `WHATSAPP_APP_SECRET`.
+
+## Implementation checklist (Phase 3)
+
+- [ ] Collect `WHATSAPP_ACCESS_TOKEN`, `WHATSAPP_PHONE_NUMBER_ID`, `WHATSAPP_VERIFY_TOKEN`, `WHATSAPP_APP_SECRET` via `supabase_add_secret`.
+- [ ] Create `supabase/functions/_shared/cors.ts` with the standard CORS headers and `OPTIONS` handling shape.
+- [ ] Create `supabase/functions/_shared/whatsapp.ts`: `verifyMetaSignature(rawBody, signatureHeader, appSecret)` (HMAC-SHA256, timing-safe compare) and `sendWhatsAppText(to, text)` (Graph API call using `WHATSAPP_ACCESS_TOKEN` / `WHATSAPP_PHONE_NUMBER_ID`).
+- [ ] Create `supabase/functions/whatsapp-webhook/index.ts`:
+  - [ ] GET: validate `hub.verify_token` against `WHATSAPP_VERIFY_TOKEN`; return `hub.challenge` on match, 403 otherwise.
+  - [ ] POST: reject (401/403) when the signature check fails, before any DB access.
+  - [ ] POST: on a valid signed request, upsert `conversation_sessions` by `wa_id`.
+  - [ ] POST: insert one `conversation_messages` row per inbound message (text/image/document/interactive).
+  - [ ] POST: reply with the static menu on hi/hello/menu/help, otherwise an echo/not-yet-implemented notice; image/document gets an acknowledgement only.
+  - [ ] POST: insert the corresponding outbound `conversation_messages` row and call `sendWhatsAppText()`.
+  - [ ] Never leak secrets or stack traces in any response body; log detail server-side only.
+- [ ] Update `supabase/config.toml` to set `verify_jwt = false` for `whatsapp-webhook` only.
+- [ ] Deploy via `supabase_deploy_edge_function` and confirm the platform reports `verify_jwt = false` for this function.
+- [ ] Write `docs/demo-script.md` with the curl commands used for verification below.
+
+## Verification checklist (Phase 3)
+
+- [ ] GET handshake with the correct `hub.verify_token` returns the `hub.challenge` value with HTTP 200.
+- [ ] GET handshake with an incorrect `hub.verify_token` returns a non-200 and does not echo the challenge.
+- [ ] POST with a valid HMAC-SHA256 signature (computed from the real `WHATSAPP_APP_SECRET`) results in exactly one new `conversation_sessions` row (first contact) and two `conversation_messages` rows (inbound + outbound), verified via `supabase_read_query`.
+- [ ] POST with an invalid/missing signature is rejected and writes zero rows (negative test).
+- [ ] Sending "Hi" from the user's real WhatsApp number to the connected test number produces a real reply on their phone within a few seconds, and the exchange is visible in `conversation_messages`.
+- [ ] Sending "menu" produces the 8-item main menu reply; sending arbitrary text produces the echo/not-yet-implemented reply; sending an image produces the acknowledgement-only reply.
+- [ ] `supabase_search_edge_function_logs` for `whatsapp-webhook` shows no unhandled errors across the above test messages.
