@@ -576,17 +576,42 @@ async function handleOnboardingMessage(
         .from("whatsapp_accounts")
         .update({ status: "unlinked" })
         .eq("user_id", context.recoveryUserId)
-        .eq("status", "active");
+        .eq("status", "active")
+        .neq("phone_number", waId);
       if (unlinkError) throw unlinkError;
 
-      const { error: relinkError } = await supabase.from("whatsapp_accounts").insert({
-        user_id: context.recoveryUserId,
-        phone_number: waId,
-        wa_id: waId,
-        status: "active",
-        last_inbound_at: new Date().toISOString(),
-      });
-      if (relinkError) throw relinkError;
+      // phone_number is globally unique, so a number that was previously
+      // linked (to this or any other account) already has a row - reuse it
+      // instead of inserting, which would violate that uniqueness.
+      const { data: existingNumberRow, error: existingNumberError } = await supabase
+        .from("whatsapp_accounts")
+        .select("id")
+        .eq("phone_number", waId)
+        .maybeSingle();
+      if (existingNumberError) throw existingNumberError;
+
+      if (existingNumberRow) {
+        const { error: reuseError } = await supabase
+          .from("whatsapp_accounts")
+          .update({
+            user_id: context.recoveryUserId,
+            wa_id: waId,
+            status: "active",
+            linked_at: new Date().toISOString(),
+            last_inbound_at: new Date().toISOString(),
+          })
+          .eq("id", existingNumberRow.id);
+        if (reuseError) throw reuseError;
+      } else {
+        const { error: relinkError } = await supabase.from("whatsapp_accounts").insert({
+          user_id: context.recoveryUserId,
+          phone_number: waId,
+          wa_id: waId,
+          status: "active",
+          last_inbound_at: new Date().toISOString(),
+        });
+        if (relinkError) throw relinkError;
+      }
 
       await insertAuthLog(supabase, "login_success", true, context.recoveryUserId, context.recoveryCompanyId);
 
