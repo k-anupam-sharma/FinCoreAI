@@ -592,3 +592,50 @@ Onboarded users currently receive only a placeholder when they send an image or 
 - [x] Lint, TypeScript, production build, backend deployment, and the real test number's invoice queued acknowledgement all passed; database verification confirmed `status='Pending'`, `source_channel='whatsapp_bot'`, private bucket `fincore-invoices`, path `invoices/CO-4907F5EF/INV-59684708.jpg`, and `VEN-PENDING-4907F5EF`. 
 
 Phase 6 live verification is complete for a real WhatsApp image upload on 2026-09-18. The source image is stored privately and the invoice is intentionally awaiting Phase 7 extraction.
+
+---
+
+## Phase 7 — AI OCR/extraction + deterministic validation
+
+### Context
+
+The first live invoice (`INV-59684708`) is safely stored but still has zero placeholder totals and a `Pending Vendor`. Phase 7 uses the enabled Enter AI All capability with the selected **Qwen 3.7 Plus** model to read the stored invoice image, return structured fields, validate the extracted facts deterministically, and persist the result to the existing `invoice_analysis` table. AI may extract and describe facts visible in the document, but it must not invent missing values or make approval/risk decisions; duplicate detection, vendor risk, budget impact, anomaly scoring, and the decision engine remain later phases.
+
+### Design decisions
+
+- **Model/protocol:** Qwen 3.7 Plus through Enter AI All's OpenAI Chat Completions protocol (`POST https://api.enter.pro/code/api/v1/ai/chat/completions`), using the project AI secret server-side and `X-Enter-Project-ID`; no user-supplied provider key.
+- **Input:** read the private Storage object with the service-role client, encode it as a data URL, and send it to Qwen as an image content part. JPG/PNG are supported for this phase. PDF remains stored/Pending and receives a clear "PDF extraction will be enabled in the next extraction update" response unless a verified PDF-to-image path is added; do not send unsupported PDF content to the model.
+- **Strict output:** prompt for one JSON object only: invoice number, vendor name, invoice date, due date, currency, subtotal, tax amount, total amount, PO number, payment terms, department, description, confidence, and line items. Missing values must be `null`; never guess. Parse defensively and reject malformed/non-object output.
+- **Validation:** deterministic checks after parsing: required invoice date/total, non-negative numeric amounts, subtotal + tax approximately equals total, valid date ordering, confidence range 0–1, and line-item sum consistency when line items are present. Store a `validation_result` object with `valid`, `errors`, and `warnings` regardless of validity.
+- **Persistence:** update `invoices` with extracted vendor-independent fields and `ocr_confidence`; insert one `invoice_analysis` row with `extracted_fields` and `validation_result`. Keep `status='Pending'` until the later decision engine. Update the placeholder vendor name only when the extracted vendor name is non-empty and a safe same-company vendor match exists; do not create a new vendor from OCR yet.
+- **Failure behavior:** if AI is unavailable, output is malformed, or the image cannot be read, preserve the stored invoice and respond that extraction needs retry; do not delete the invoice or fabricate values. Technical errors remain server-side logs.
+- **Execution location:** extend the existing webhook path after successful Phase 6 ingestion, keeping implementation in the same file because this project's backend bundler does not resolve `_shared/` imports. The first implementation may run synchronously for the live demo; a later refactor can move long-running analysis to a separate chained backend function.
+
+### Files
+
+- `supabase/functions/whatsapp-webhook/index.ts` — Enter AI request, image data URL preparation, strict JSON parsing, deterministic validation, invoice/invoice_analysis persistence, and post-upload response.
+- `docs/demo-script.md` — Phase 7 OCR walkthrough and malformed/low-confidence cases.
+- `.enter/plans/fincore-ai-architecture.md` — Phase 7 checklist and verification evidence.
+
+### Implementation checklist (Phase 7)
+
+- [ ] Add server-only AI constants using `AI_API_TOKEN_207130282296` and the exact Enter AI All base URL/project header.
+- [ ] Add a Qwen 3.7 Plus OpenAI Chat Completions request with image data URL content, `stream:false`, strict JSON extraction instructions, and a stable session ID.
+- [ ] Add defensive JSON parsing that accepts a fenced JSON response only when the decoded value is an object and rejects missing/guessed fields safely.
+- [ ] Implement deterministic validation for totals, dates, numeric ranges, confidence, and line-item consistency.
+- [ ] Persist `invoice_analysis.extracted_fields` and `.validation_result`, update extracted invoice columns and `ocr_confidence`, and preserve `status='Pending'`.
+- [ ] Keep the existing company-scoped Pending Vendor unless a same-company vendor match is already present; never create a vendor solely from an unverified OCR name.
+- [ ] Return a WhatsApp success message with invoice number, extracted total/currency, and validation status without exposing raw model output.
+- [ ] Return a safe retry response on AI timeout/error/malformed output while preserving the Phase 6 invoice and Storage object.
+- [ ] Deploy the updated backend function and append the Phase 7 demo steps.
+
+### Verification checklist (Phase 7)
+
+- [ ] The live stored JPG invoice produces one `invoice_analysis` row with structured extracted fields and a confidence value between 0 and 1.
+- [ ] A valid extraction updates the existing invoice's date, totals, currency, due date/PO when present, and leaves `status='Pending'`.
+- [ ] Validation marks the live invoice valid or records explicit errors/warnings without inventing values.
+- [ ] A malformed model response creates no partial analysis row and leaves the invoice safely Pending.
+- [ ] An AI timeout/4xx response produces a safe WhatsApp message and preserves the source object and invoice row.
+- [ ] A PDF upload remains stored and Pending without being sent through the unsupported image-only extraction path.
+- [ ] Existing invoices, vendors, companies, account links, and recovery records remain unchanged except for the explicitly analyzed invoice.
+- [ ] Lint, TypeScript, production build, backend deployment, and one real WhatsApp extraction response pass.
