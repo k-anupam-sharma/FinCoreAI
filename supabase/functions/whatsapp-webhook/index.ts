@@ -979,6 +979,20 @@ async function explainFinancialFacts(question: string, facts: string): Promise<s
   }
 }
 
+async function handleNumericMenu(supabase: SupabaseClient, companyId: string, text: string): Promise<string | null> {
+  const option = text.trim();
+  if (!/^[1-8]$/.test(option)) return null;
+  if (option === "1") return "Please send your invoice as a PDF, JPG, or PNG image (maximum 10 MB). I will store it securely, extract the details, check risks, and return a recommendation.";
+  if (option === "2") return answerFinancialQuestion(supabase, companyId, "How much did we spend this month?");
+  if (option === "3") return answerFinancialQuestion(supabase, companyId, "Which vendor has the highest spend?");
+  if (option === "4") return answerFinancialQuestion(supabase, companyId, "How much budget is left?");
+  if (option === "5") return handleForecastCommand(supabase, companyId, "30 day forecast");
+  if (option === "6") return scanCompanyAlerts(supabase, companyId);
+  if (option === "7") return "Ask me a finance question in plain English, such as: Which vendor has the highest spend?";
+  if (option === "8") return `Your FinCore account is active. You can use the numbered menu, upload invoices, ask questions in plain English, or type alerts to review risks.`;
+  return null;
+}
+
 interface NaturalLanguageIntent {
   intent: "menu" | "alerts" | "workflow_action" | "forecast" | "qna" | "unknown";
   action: "approve" | "review" | "defer" | "reject" | null;
@@ -1819,7 +1833,8 @@ Deno.serve(async (req) => {
           const { data: linkedUser, error: linkedUserError } = await supabase.from("users").select("company_id,role").eq("user_id", linkedAccount.user_id).maybeSingle();
           if (linkedUserError) throw linkedUserError;
           if (!linkedUser) throw new Error("Linked WhatsApp account has no user record");
-          const forecastReply = await handleForecastCommand(supabase, linkedUser.company_id, content);
+          const numericReply = await handleNumericMenu(supabase, linkedUser.company_id, content);
+          const forecastReply = numericReply ?? await handleForecastCommand(supabase, linkedUser.company_id, content);
           const workflowReply = forecastReply ?? await handleWorkflowCommand(supabase, linkedAccount.user_id, linkedUser.company_id, linkedUser.role, content);
           if (workflowReply) {
             replyText = workflowReply;

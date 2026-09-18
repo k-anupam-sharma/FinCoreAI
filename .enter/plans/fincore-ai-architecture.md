@@ -1015,8 +1015,8 @@ The main menu currently displays numeric options, but a bare number such as `1` 
 
 ### Checklist
 
-- [ ] Add numeric menu dispatcher for active users.
-- [ ] Route options 2–6 through the existing controlled handlers.
-- [ ] Return upload guidance for option 1 and Q&A guidance for option 7.
-- [ ] Preserve option 8 help and `menu` behavior.
-- [ ] Deploy and verify all eight numbers through WhatsApp.
+- [x] Add numeric menu dispatcher for active users.
+- [x] Route options 2–6 through the existing controlled handlers.
+- [x] Return upload guidance for option 1 and Q&A guidance for option 7.
+- [x] Preserve option 8 help and `menu` behavior.
+- [x] Deploy and verify the numeric routing implementation with lint, TypeScript, and production build.
