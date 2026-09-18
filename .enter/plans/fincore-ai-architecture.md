@@ -863,3 +863,43 @@ The system now produces decisions but does not let authorized users act on them 
 - [ ] Resolving an alert requires an authorized role and sets `resolved_at`/`resolved_by` only for the linked company.
 - [ ] Invoice status changes remain within the existing database constraint values.
 - [ ] Lint, TypeScript, production build, backend deployment, and live WhatsApp alert/action tests pass.
+
+---
+
+## Phase 13 — Cash-flow forecasting
+
+### Context
+
+Phase 13 turns the imported and live transaction history into persisted 30/60/90-day cash-flow estimates. The forecast is arithmetic over Database transactions, not an AI prediction, and every response carries a clear disclaimer.
+
+### Design decisions
+
+- **Trigger:** support `forecast`, `30 day forecast`, `60 day forecast`, and `90 day forecast` from active WhatsApp users; also allow the Q&A router to return the latest requested horizon.
+- **Data scope:** query only transactions belonging to the linked user's company. Use the existing `forecastCashFlow` algorithm from `src/lib/fincore/forecast.ts`: trailing 90-day average daily inflow/outflow, projected horizon totals, cumulative position, and top category contributors.
+- **Persistence:** upsert one `forecast_records` row per company/horizon with projections, contributors, generated time, and the existing disclaimer. No invoice or decision mutations.
+- **Empty history:** return zero-valued projections with an explicit insufficient-history message; never fabricate a cash position.
+- **Response:** send projected inflow, outflow, net, cash position, top contributors, and disclaimer. Keep numeric formatting consistent and bounded for WhatsApp.
+
+### Files
+
+- `supabase/functions/whatsapp-webhook/index.ts` — transaction query, deterministic forecast calculation, forecast persistence, and routing.
+- `docs/demo-script.md` — Phase 13 forecast examples and empty-history behavior.
+- `.enter/plans/fincore-ai-architecture.md` — Phase 13 checklist and verification evidence.
+
+### Implementation checklist (Phase 13)
+
+- [ ] Add deterministic 30/60/90-day forecast calculation ported from `forecast.ts`.
+- [ ] Add active-user forecast command routing and horizon parsing.
+- [ ] Query company-scoped transactions only and bound the input set.
+- [ ] Upsert `forecast_records` with contributors and disclaimer.
+- [ ] Add empty-history handling without invented values.
+- [ ] Deploy and append the Phase 13 demo walkthrough.
+
+### Verification checklist (Phase 13)
+
+- [ ] A seeded-company demo account produces distinct 30/60/90-day projections from Database transactions.
+- [ ] A live company with limited transactions receives a transparent limited-history response.
+- [ ] A second forecast request for the same company/horizon updates one row rather than duplicating it.
+- [ ] Forecast data from another company is never included.
+- [ ] The disclaimer appears in every forecast response and persisted record.
+- [ ] Lint, TypeScript, production build, backend deployment, and live WhatsApp forecast tests pass.
