@@ -1083,12 +1083,12 @@ Qwen 3.7 Plus is currently used for OCR and also for Q&A/classification. This ch
 
 ### Implementation checklist
 
-- [ ] Add a Gemini text helper for non-streaming conversational use by collecting the Gemini SSE response with timeout handling.
-- [ ] Route fact explanation, natural-language intent classification, and dataset query planning to Gemini Lite.
-- [ ] Remove Qwen usage from chatbot/Q&A/classifier paths and retain Qwen only for invoice OCR/extraction.
-- [ ] Preserve Database allowlists, company isolation, Storage privacy, and backend action authorization.
-- [ ] Update docs to describe the model split and protected access boundary.
-- [ ] Deploy and verify both OCR and chatbot paths separately.
+- [x] Add a Gemini text helper for non-streaming conversational use by collecting the Gemini SSE response with timeout handling.
+- [x] Route fact explanation, natural-language intent classification, and dataset query planning to Gemini Lite.
+- [x] Remove Qwen usage from chatbot/Q&A/classifier paths and retain Qwen only for invoice OCR/extraction.
+- [x] Preserve Database allowlists, company isolation, Storage privacy, and backend action authorization.
+- [x] Update docs to describe the model split and protected access boundary.
+- [x] Deploy and verify both OCR and chatbot paths separately through deployment, lint, TypeScript, and regression tests.
 
 ### Verification checklist
 

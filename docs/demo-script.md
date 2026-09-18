@@ -360,7 +360,7 @@ Give me the 90-day cash-flow projection
 How much did we spend this month?
 ```
 
-Qwen only classifies the request into an allowlisted intent. The existing backend handlers still enforce company scope, role authorization, invoice/alert ownership, and database validation. Invalid or unavailable AI classification falls back to the deterministic handlers.
+Gemini Lite classifies the request into an allowlisted intent. Qwen is reserved for invoice OCR and structured extraction. The existing backend handlers still enforce company scope, role authorization, invoice/alert ownership, and database validation. Invalid or unavailable AI classification falls back to the deterministic handlers.
 
 ---
 

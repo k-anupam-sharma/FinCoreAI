@@ -44,6 +44,47 @@ async function fetchWithTimeout(input: RequestInfo | URL, init: RequestInit = {}
   }
 }
 
+async function callGeminiText(systemPrompt: string, userText: string, maxOutputTokens = 500): Promise<string | null> {
+  if (!AI_API_TOKEN) return null;
+  try {
+    const response = await fetchWithTimeout(`${AI_API_BASE}/code/api/ai/v1beta/models/${CHAT_MODEL}:streamGenerateContent`, {
+      method: "POST",
+      headers: {
+        "x-goog-api-key": AI_API_TOKEN,
+        "Content-Type": "application/json",
+        "X-Enter-Project-ID": AI_PROJECT_ID,
+        "X-Session-ID": `chatbot-${crypto.randomUUID()}`,
+      },
+      body: JSON.stringify({
+        systemInstruction: { parts: [{ text: systemPrompt }] },
+        contents: [{ role: "user", parts: [{ text: userText }] }],
+        generationConfig: { temperature: 0, maxOutputTokens },
+      }),
+    });
+    const body = await response.text();
+    if (!response.ok) {
+      console.error(`whatsapp-webhook: Gemini chatbot request failed (${response.status})`);
+      return null;
+    }
+    const chunks: string[] = [];
+    for (const line of body.split(String.fromCharCode(10))) {
+      const trimmed = line.trim();
+      if (!trimmed.startsWith("data:")) continue;
+      try {
+        const data = JSON.parse(trimmed.slice(5).trim());
+        const text = data?.candidates?.[0]?.content?.parts?.map((part: { text?: string }) => part.text ?? "").join("");
+        if (text) chunks.push(text);
+      } catch {
+        // Ignore non-JSON SSE lines and continue collecting text chunks.
+      }
+    }
+    return chunks.join("").trim() || null;
+  } catch (error) {
+    console.error("whatsapp-webhook: Gemini chatbot request failed", error instanceof Error ? error.message : error);
+    return null;
+  }
+}
+
 function hexToBytes(hex: string): Uint8Array {
   const bytes = new Uint8Array(hex.length / 2);
   for (let i = 0; i < bytes.length; i++) {
@@ -244,6 +285,7 @@ const AI_API_TOKEN = Deno.env.get("AI_API_TOKEN_207130282296") ?? "";
 const AI_API_BASE = "https://api.enter.pro";
 const AI_PROJECT_ID = "20713028229644c2839e687ec9379bee";
 const OCR_MODEL = "alibaba/qwen-3.7-plus";
+const CHAT_MODEL = "google/gemini-3.1-flash-lite-preview";
 const ALLOWED_INVOICE_TYPES = new Set(["application/pdf", "image/jpeg", "image/png"]);
 
 function invoiceExtension(mimeType: string, filename?: string): string {
@@ -947,34 +989,12 @@ function extractQuestionAmount(question: string): number | null {
 }
 
 async function explainFinancialFacts(question: string, facts: string): Promise<string> {
-  if (!AI_API_TOKEN) return facts;
-  try {
-    const response = await fetchWithTimeout(`${AI_API_BASE}/code/api/v1/ai/chat/completions`, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${AI_API_TOKEN}`,
-        "Content-Type": "application/json",
-        "X-Enter-Project-ID": AI_PROJECT_ID,
-        "X-Session-ID": `qna-${crypto.randomUUID()}`,
-      },
-      body: JSON.stringify({
-        model: OCR_MODEL,
-        stream: false,
-        temperature: 0,
-        max_tokens: 500,
-        messages: [
-          { role: "system", content: "Answer the user's finance question using only the supplied facts. Do not invent, recalculate, or add unsupported numbers. Be concise and preserve any disclaimer." },
-          { role: "user", content: `Question: ${question}\n\nFacts:\n${facts}` },
-        ],
-      }),
-    });
-    const data = await response.json();
-    const answer = data?.choices?.[0]?.message?.content;
-    return response.ok && typeof answer === "string" && answer.trim() ? answer.trim() : facts;
-  } catch (error) {
-    console.error("whatsapp-webhook: Q&A explanation failed", error instanceof Error ? error.message : error);
-    return facts;
-  }
+  const answer = await callGeminiText(
+    "Answer the user's finance question using only the supplied company-scoped facts. Do not invent, recalculate, or add unsupported numbers. Be concise and preserve disclaimers.",
+    `Question: ${question}${NL}${NL}Facts:${NL}${facts}`,
+    500,
+  );
+  return answer ?? facts;
 }
 
 async function handleNumericMenu(supabase: SupabaseClient, companyId: string, text: string): Promise<string | null> {
@@ -1024,30 +1044,13 @@ function normalizeNaturalLanguageIntent(value: Record<string, unknown>): Natural
 }
 
 async function classifyNaturalLanguageCommand(text: string): Promise<NaturalLanguageIntent | null> {
-  if (!AI_API_TOKEN) return null;
-  try {
-    const response = await fetchWithTimeout(`${AI_API_BASE}/code/api/v1/ai/chat/completions`, {
-      method: "POST",
-      headers: { Authorization: `Bearer ${AI_API_TOKEN}`, "Content-Type": "application/json", "X-Enter-Project-ID": AI_PROJECT_ID, "X-Session-ID": `intent-${crypto.randomUUID()}` },
-      body: JSON.stringify({
-        model: OCR_MODEL,
-        stream: false,
-        temperature: 0,
-        max_tokens: 220,
-        messages: [
-          { role: "system", content: "Classify the user's finance command. Return JSON only with intent (menu|alerts|workflow_action|forecast|qna|unknown), action (approve|review|defer|reject|null), invoice_id (INV-... or null), alert_id (or null), horizon_days (30|60|90|null), and question (or null). Never invent IDs." },
-          { role: "user", content: text },
-        ],
-      }),
-    });
-    const data = await response.json();
-    const content = data?.choices?.[0]?.message?.content;
-    const parsed = typeof content === "string" ? parseJsonObject(content) : null;
-    return response.ok && parsed ? normalizeNaturalLanguageIntent(parsed) : null;
-  } catch (error) {
-    console.error("whatsapp-webhook: natural-language classifier failed", error instanceof Error ? error.message : error);
-    return null;
-  }
+  const content = await callGeminiText(
+    "Classify the user's finance command. Return JSON only with intent (menu|alerts|workflow_action|forecast|qna|unknown), action (approve|review|defer|reject|null), invoice_id (INV-... or null), alert_id (or null), horizon_days (30|60|90|null), and question (or null). Never invent IDs.",
+    text,
+    220,
+  );
+  const parsed = content ? parseJsonObject(content) : null;
+  return parsed ? normalizeNaturalLanguageIntent(parsed) : null;
 }
 
 type DatasetPlan = {
@@ -1106,30 +1109,13 @@ function normalizeDatasetPlan(value: Record<string, unknown>): DatasetPlan | nul
 }
 
 async function classifyDatasetPlan(question: string): Promise<DatasetPlan | null> {
-  if (!AI_API_TOKEN) return null;
-  try {
-    const response = await fetchWithTimeout(`${AI_API_BASE}/code/api/v1/ai/chat/completions`, {
-      method: "POST",
-      headers: { Authorization: `Bearer ${AI_API_TOKEN}`, "Content-Type": "application/json", "X-Enter-Project-ID": AI_PROJECT_ID, "X-Session-ID": `dataset-plan-${crypto.randomUUID()}` },
-      body: JSON.stringify({
-        model: OCR_MODEL,
-        stream: false,
-        temperature: 0,
-        max_tokens: 500,
-        messages: [
-          { role: "system", content: "Create a read-only FinCore dataset query plan as JSON only. Allowed tables are companies, users, vendors, invoices, payments, budgets, transactions, decisions, invoice_analysis, risk_alerts, forecast_records. Use only fields needed to answer. Set in_scope false for non-financial or external questions. Never request mutations, joins, raw SQL, credentials, or another company." },
-          { role: "user", content: question },
-        ],
-      }),
-    });
-    const data = await response.json();
-    const content = data?.choices?.[0]?.message?.content;
-    const parsed = typeof content === "string" ? parseJsonObject(content) : null;
-    return parsed ? normalizeDatasetPlan(parsed) : null;
-  } catch (error) {
-    console.error("whatsapp-webhook: dataset plan failed", error instanceof Error ? error.message : error);
-    return null;
-  }
+  const content = await callGeminiText(
+    "Create a read-only FinCore dataset query plan as JSON only. Allowed tables are companies, users, vendors, invoices, payments, budgets, transactions, decisions, invoice_analysis, risk_alerts, forecast_records. Use only fields needed to answer. Set in_scope false for non-financial or external questions. Never request mutations, joins, raw SQL, credentials, or another company.",
+    question,
+    500,
+  );
+  const parsed = content ? parseJsonObject(content) : null;
+  return parsed ? normalizeDatasetPlan(parsed) : null;
 }
 
 async function answerDatasetQuestion(supabase: SupabaseClient, companyId: string, question: string): Promise<string | null> {
