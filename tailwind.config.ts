@@ -62,6 +62,31 @@ export default {
 					'accent-foreground': 'hsl(var(--sidebar-accent-foreground))',
 					border: 'hsl(var(--sidebar-border))',
 					ring: 'hsl(var(--sidebar-ring))'
+				},
+				whatsapp: {
+					DEFAULT: 'hsl(var(--whatsapp))',
+					dark: 'hsl(var(--whatsapp-dark))',
+					foreground: 'hsl(var(--whatsapp-foreground))'
+				},
+				chat: {
+					bg: 'hsl(var(--chat-bg))',
+					bubbleOut: 'hsl(var(--bubble-out))',
+					bubbleOutForeground: 'hsl(var(--bubble-out-foreground))',
+					bubbleIn: 'hsl(var(--bubble-in))',
+					bubbleInForeground: 'hsl(var(--bubble-in-foreground))'
+				},
+				risk: {
+					low: 'hsl(var(--risk-low))',
+					medium: 'hsl(var(--risk-medium))',
+					high: 'hsl(var(--risk-high))',
+					foreground: 'hsl(var(--risk-foreground))'
+				},
+				decision: {
+					approve: 'hsl(var(--decision-approve))',
+					review: 'hsl(var(--decision-review))',
+					defer: 'hsl(var(--decision-defer))',
+					reject: 'hsl(var(--decision-reject))',
+					foreground: 'hsl(var(--decision-foreground))'
 				}
 			},
 			borderRadius: {

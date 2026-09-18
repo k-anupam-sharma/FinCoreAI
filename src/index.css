@@ -50,6 +50,27 @@
     --sidebar-border: 220 13% 91%;
 
     --sidebar-ring: 217.2 91.2% 59.8%;
+
+    /* FinCore AI — WhatsApp chat surface tokens */
+    --whatsapp: 142 70% 33%;
+    --whatsapp-dark: 168 76% 20%;
+    --whatsapp-foreground: 0 0% 100%;
+    --chat-bg: 84 24% 93%;
+    --bubble-out: 142 52% 88%;
+    --bubble-out-foreground: 222.2 84% 4.9%;
+    --bubble-in: 0 0% 100%;
+    --bubble-in-foreground: 222.2 84% 4.9%;
+
+    /* Risk / decision severity tokens */
+    --risk-low: 142 60% 38%;
+    --risk-medium: 38 92% 48%;
+    --risk-high: 0 72% 48%;
+    --risk-foreground: 0 0% 100%;
+    --decision-approve: 142 60% 38%;
+    --decision-review: 38 92% 48%;
+    --decision-defer: 217 70% 50%;
+    --decision-reject: 0 72% 48%;
+    --decision-foreground: 0 0% 100%;
   }
 
   .dark {
@@ -88,6 +109,25 @@
     --sidebar-accent-foreground: 240 4.8% 95.9%;
     --sidebar-border: 240 3.7% 15.9%;
     --sidebar-ring: 217.2 91.2% 59.8%;
+
+    --whatsapp: 142 60% 30%;
+    --whatsapp-dark: 168 60% 14%;
+    --whatsapp-foreground: 0 0% 100%;
+    --chat-bg: 222.2 30% 10%;
+    --bubble-out: 142 40% 22%;
+    --bubble-out-foreground: 0 0% 98%;
+    --bubble-in: 217.2 32.6% 17.5%;
+    --bubble-in-foreground: 0 0% 98%;
+
+    --risk-low: 142 50% 40%;
+    --risk-medium: 38 80% 50%;
+    --risk-high: 0 62% 50%;
+    --risk-foreground: 0 0% 100%;
+    --decision-approve: 142 50% 40%;
+    --decision-review: 38 80% 50%;
+    --decision-defer: 217 60% 55%;
+    --decision-reject: 0 62% 50%;
+    --decision-foreground: 0 0% 100%;
   }
 }
 
