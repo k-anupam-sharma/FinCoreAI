@@ -548,7 +548,7 @@ Onboarded users currently receive only a placeholder when they send an image or 
 - **Allowed types:** PDF, JPEG/JPG, PNG.
 - **Maximum size:** 10 MB (10,485,760 bytes).
 - **Storage:** private bucket `fincore-invoices`; object path `invoices/{company_id}/{invoice_id}.{ext}`. Never expose a public URL; persist only the storage path in `invoices.file_storage_path`.
-- **Invoice metadata:** because extraction is not yet available, create a Pending invoice with deterministic placeholder metadata (`vendor_id` resolved to a safe company vendor or a dedicated pending-vendor strategy decided from existing constraints before implementation), and leave extracted financial fields at safe zero/null values only where the existing schema permits them. Do not invent invoice totals or vendor facts.
+- **Invoice metadata:** because extraction is not yet available, create a Pending invoice using one company-scoped placeholder vendor named `Pending Vendor` (reuse it if already present; otherwise create exactly one `VEN-PENDING-<company suffix>` vendor row with neutral metadata). Leave extracted financial fields at safe zero/null values only where the existing schema permits them. Do not invent invoice totals or vendor facts.
 
 ### Design
 
@@ -572,7 +572,7 @@ Onboarded users currently receive only a placeholder when they send an image or 
 - [ ] Extend the inbound WhatsApp types and extraction path to retain media ID, MIME type, filename, and caption for image/document messages.
 - [ ] Add `ingestWhatsAppInvoice` with Meta media metadata fetch, authenticated binary download, allowed-type validation, and 10 MB byte-limit validation.
 - [ ] Provision/use private `fincore-invoices` Storage and upload to `invoices/{company_id}/{invoice_id}.{ext}` without public URLs.
-- [ ] Resolve the pending-invoice vendor strategy from existing `invoices.vendor_id` constraints before inserting; do not create fabricated vendor financial data.
+- [ ] Reuse or create exactly one company-scoped `Pending Vendor` row (`VEN-PENDING-<company suffix>`) for invoices whose vendor is not yet extracted; do not create fabricated vendor financial data.
 - [ ] Insert a Pending `invoices` row with `source_channel='whatsapp_bot'`, `file_storage_path`, company/user ownership, and only schema-valid placeholder fields.
 - [ ] Delete the uploaded object when a later database insert fails; never leave an orphaned object from a failed ingest.
 - [ ] Route active-sender images/documents into ingest and leave onboarding media behavior unchanged for unidentified senders.
