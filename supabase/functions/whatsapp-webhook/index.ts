@@ -829,6 +829,152 @@ function scoreDuplicateInvoice(
   return { score: Math.min(100, score), evidence };
 }
 
+// ---- FinCore Intelligence Query Functions ----
+
+async function getCompanyOverview(supabase: SupabaseClient, companyId: string): Promise<Record<string, unknown>> {
+  const [company, invoices, payments, budgets, transactions, alerts] = await Promise.all([
+    supabase.from("companies").select("company_id,name,industry,country,plan_tier").eq("company_id", companyId).maybeSingle(),
+    supabase.from("invoices").select("invoice_id,total_amount,status").eq("company_id", companyId),
+    supabase.from("payments").select("payment_id,amount,status").eq("company_id", companyId),
+    supabase.from("budgets").select("budget_id,allocated,spent,remaining,department,period").eq("company_id", companyId),
+    supabase.from("transactions").select("transaction_id,amount,type").eq("company_id", companyId),
+    supabase.from("risk_alerts").select("id,alert_type,severity,message,status").eq("company_id", companyId).eq("status", "open"),
+  ]);
+  const totalInvoiceValue = (invoices.data ?? []).reduce((sum, inv) => sum + Number(inv.total_amount ?? 0), 0);
+  const totalPayments = (payments.data ?? []).reduce((sum, p) => sum + Number(p.amount ?? 0), 0);
+  const totalBudget = (budgets.data ?? []).reduce((sum, b) => sum + Number(b.allocated ?? 0), 0);
+  const totalSpent = (budgets.data ?? []).reduce((sum, b) => sum + Number(b.spent ?? 0), 0);
+  const cashInflow = (transactions.data ?? []).filter((t) => t.type === "inflow").reduce((sum, t) => sum + Number(t.amount ?? 0), 0);
+  const cashOutflow = (transactions.data ?? []).filter((t) => t.type === "outflow").reduce((sum, t) => sum + Number(t.amount ?? 0), 0);
+  const pendingInvoices = (invoices.data ?? []).filter((inv) => inv.status === "Pending").length;
+  return {
+    company: company.data,
+    total_invoice_value: totalInvoiceValue,
+    total_payments: totalPayments,
+    total_budget_allocated: totalBudget,
+    total_budget_spent: totalSpent,
+    cash_inflow: cashInflow,
+    cash_outflow: cashOutflow,
+    net_cash_position: cashInflow - cashOutflow,
+    pending_invoices: pendingInvoices,
+    open_risk_alerts: alerts.data ?? [],
+  };
+}
+
+async function getInvoiceIntelligence(supabase: SupabaseClient, companyId: string, invoiceId?: string): Promise<Record<string, unknown>[]> {
+  let query = supabase.from("invoices").select("invoice_id,vendor_id,department,gl_account,subtotal,tax_amount,total_amount,currency,date,due_date,status,po_number,payment_terms,ocr_confidence,is_recurring,notes").eq("company_id", companyId);
+  if (invoiceId) query = query.eq("invoice_id", invoiceId);
+  const { data, error } = await query.order("date", { ascending: false }).limit(50);
+  if (error) throw error;
+  return data ?? [];
+}
+
+async function getVendorIntelligence(supabase: SupabaseClient, companyId: string, vendorId?: string): Promise<Record<string, unknown>[]> {
+  const vendors = await supabase.from("vendors").select("vendor_id,name,category,risk_profile,status,bank_name,tax_id,onboarded_date").eq("company_id", companyId);
+  if (vendorId) vendors.data = (vendors.data ?? []).filter((v) => v.vendor_id === vendorId);
+  const vendorIds = (vendors.data ?? []).map((v) => v.vendor_id);
+  const [invoices, payments, bankChanges] = await Promise.all([
+    vendorIds.length ? supabase.from("invoices").select("vendor_id,invoice_id,total_amount").eq("company_id", companyId).in("vendor_id", vendorIds) : { data: [], error: null },
+    vendorIds.length ? supabase.from("payments").select("invoice_id,amount,status").eq("company_id", companyId) : { data: [], error: null },
+    vendorIds.length ? supabase.from("vendor_bank_changes").select("vendor_id,change_id,old_bank_name,new_bank_name,changed_at").eq("company_id", companyId).in("vendor_id", vendorIds) : { data: [], error: null },
+  ]);
+  const vendorStats = new Map<string, { spend: number; count: number; payments: number }>();
+  for (const inv of invoices.data ?? []) {
+    const stats = vendorStats.get(inv.vendor_id) ?? { spend: 0, count: 0, payments: 0 };
+    stats.spend += Number(inv.total_amount ?? 0);
+    stats.count++;
+    vendorStats.set(inv.vendor_id, stats);
+  }
+  return (vendors.data ?? []).map((v) => ({
+    ...v,
+    total_spend: vendorStats.get(v.vendor_id)?.spend ?? 0,
+    invoice_count: vendorStats.get(v.vendor_id)?.count ?? 0,
+    bank_changes: (bankChanges.data ?? []).filter((bc) => bc.vendor_id === v.vendor_id),
+  }));
+}
+
+async function getBudgetIntelligence(supabase: SupabaseClient, companyId: string, department?: string, period?: string): Promise<Record<string, unknown>[]> {
+  let query = supabase.from("budgets").select("budget_id,department,period,allocated,spent,remaining").eq("company_id", companyId);
+  if (department) query = query.eq("department", department);
+  if (period) query = query.eq("period", period);
+  const { data, error } = await query.order("period", { ascending: false });
+  if (error) throw error;
+  return (data ?? []).map((b) => ({
+    ...b,
+    utilization_pct: Number(b.allocated) > 0 ? (Number(b.spent) / Number(b.allocated)) * 100 : 0,
+    is_over_budget: Number(b.remaining) < 0,
+  }));
+}
+
+async function getCashFlowIntelligence(supabase: SupabaseClient, companyId: string, months = 6): Promise<Record<string, unknown>> {
+  const cutoff = new Date();
+  cutoff.setMonth(cutoff.getMonth() - months);
+  const { data, error } = await supabase.from("transactions").select("transaction_id,date,type,category,amount").eq("company_id", companyId).gte("date", cutoff.toISOString().slice(0, 10));
+  if (error) throw error;
+  const transactions = data ?? [];
+  const inflows = transactions.filter((t) => t.type === "inflow");
+  const outflows = transactions.filter((t) => t.type === "outflow");
+  const totalInflow = inflows.reduce((sum, t) => sum + Number(t.amount ?? 0), 0);
+  const totalOutflow = outflows.reduce((sum, t) => sum + Number(t.amount ?? 0), 0);
+  const byCategory = new Map<string, { inflow: number; outflow: number }>();
+  for (const t of transactions) {
+    const cat = byCategory.get(t.category) ?? { inflow: 0, outflow: 0 };
+    if (t.type === "inflow") cat.inflow += Number(t.amount ?? 0);
+    else cat.outflow += Number(t.amount ?? 0);
+    byCategory.set(t.category, cat);
+  }
+  return {
+    period: `${months} months`,
+    total_inflow: totalInflow,
+    total_outflow: totalOutflow,
+    net_cash_flow: totalInflow - totalOutflow,
+    transaction_count: transactions.length,
+    by_category: Array.from(byCategory.entries()).map(([category, amounts]) => ({ category, ...amounts })),
+  };
+}
+
+async function getPaymentIntelligence(supabase: SupabaseClient, companyId: string, status?: string): Promise<Record<string, unknown>[]> {
+  let query = supabase.from("payments").select("payment_id,invoice_id,amount,status,payment_method,bank_reference,payment_date").eq("company_id", companyId);
+  if (status) query = query.eq("status", status);
+  const { data, error } = await query.order("payment_date", { ascending: false }).limit(100);
+  if (error) throw error;
+  return data ?? [];
+}
+
+async function getDecisionIntelligence(supabase: SupabaseClient, companyId: string, recommendation?: string): Promise<Record<string, unknown>[]> {
+  let query = supabase.from("decisions").select("decision_id,invoice_id,recommendation,reasoning,confidence_score,decided_by,timestamp").eq("company_id", companyId);
+  if (recommendation) query = query.eq("recommendation", recommendation);
+  const { data, error } = await query.order("timestamp", { ascending: false }).limit(100);
+  if (error) throw error;
+  return data ?? [];
+}
+
+async function getAnomalyIntelligence(supabase: SupabaseClient, companyId: string): Promise<Record<string, unknown>[]> {
+  const { data: invoices, error: invoiceError } = await supabase.from("invoices").select("invoice_id").eq("company_id", companyId);
+  if (invoiceError) throw invoiceError;
+  const invoiceIds = (invoices?.data ?? []).map((inv) => inv.invoice_id);
+  if (!invoiceIds.length) return [];
+  const { data, error } = await supabase.from("invoice_analysis").select("invoice_id,duplicate_score,anomaly_score,anomaly_reasons,validation_result").in("invoice_id", invoiceIds).order("anomaly_score", { ascending: false }).limit(50);
+  if (error) throw error;
+  return (data ?? []).filter((a) => Number(a.anomaly_score ?? 0) > 30 || Number(a.duplicate_score ?? 0) > 50);
+}
+
+async function getAuthIntelligence(supabase: SupabaseClient, companyId: string, userId?: string): Promise<Record<string, unknown>[]> {
+  let query = supabase.from("auth_log").select("log_id,user_id,event_type,success,device,timestamp").eq("company_id", companyId);
+  if (userId) query = query.eq("user_id", userId);
+  const { data, error } = await query.order("timestamp", { ascending: false }).limit(100);
+  if (error) throw error;
+  return data ?? [];
+}
+
+async function getVendorBankChangeIntelligence(supabase: SupabaseClient, companyId: string, vendorId?: string): Promise<Record<string, unknown>[]> {
+  let query = supabase.from("vendor_bank_changes").select("change_id,vendor_id,old_account_number,new_account_number,old_bank_name,new_bank_name,changed_at,changed_by").eq("company_id", companyId);
+  if (vendorId) query = query.eq("vendor_id", vendorId);
+  const { data, error } = await query.order("changed_at", { ascending: false }).limit(50);
+  if (error) throw error;
+  return data ?? [];
+}
+
 async function enrichInvoiceIntelligence(
   supabase: SupabaseClient,
   invoiceId: string,
@@ -1364,87 +1510,121 @@ async function answerDatasetQuestion(supabase: SupabaseClient, companyId: string
 
 async function answerFinancialQuestion(supabase: SupabaseClient, companyId: string, question: string): Promise<string> {
   const lower = question.toLowerCase();
-  const currentPeriod = new Date().toISOString().slice(0, 7);
-  const { data: invoices, error: invoiceError } = await supabase
-    .from("invoices")
-    .select("invoice_id,vendor_id,department,subtotal,tax_amount,total_amount,currency,date,due_date,status")
-    .eq("company_id", companyId)
-    .limit(500);
-  if (invoiceError) throw invoiceError;
-  const rows = invoices ?? [];
-  let facts = "";
 
-  if (/(how many users|number of users|users.*have)/.test(lower) || /(highest transaction|largest transaction|biggest transaction|max transaction)/.test(lower)) {
-    const results: string[] = [];
-    if (/(how many users|number of users|users.*have)/.test(lower)) {
-      const { count, error } = await supabase.from("users").select("user_id", { count: "exact", head: true }).eq("company_id", companyId);
-      if (error) throw error;
-      results.push(`Your company has ${count ?? 0} users in the FinCore Database.`);
+  // Company overview
+  if (/(overview|summary|company info|total spending|total spend|cash position)/.test(lower)) {
+    const overview = await getCompanyOverview(supabase, companyId);
+    return [
+      `Company: ${(overview.company as Record<string, unknown>)?.name ?? "Unknown"}`,
+      `Total Invoice Value: INR ${Number(overview.total_invoice_value ?? 0).toFixed(2)}`,
+      `Total Payments: INR ${Number(overview.total_payments ?? 0).toFixed(2)}`,
+      `Budget Allocated: INR ${Number(overview.total_budget_allocated ?? 0).toFixed(2)}`,
+      `Budget Spent: INR ${Number(overview.total_budget_spent ?? 0).toFixed(2)}`,
+      `Cash Inflow: INR ${Number(overview.cash_inflow ?? 0).toFixed(2)}`,
+      `Cash Outflow: INR ${Number(overview.cash_outflow ?? 0).toFixed(2)}`,
+      `Net Cash Position: INR ${Number(overview.net_cash_position ?? 0).toFixed(2)}`,
+      `Pending Invoices: ${overview.pending_invoices ?? 0}`,
+      `Open Risk Alerts: ${(overview.open_risk_alerts as unknown[]).length ?? 0}`,
+    ].join(NL);
+  }
+
+  // Invoice intelligence
+  if (/(invoice|invoices|pending invoice|unpaid)/.test(lower)) {
+    const status = /pending/.test(lower) ? "Pending" : undefined;
+    const invoices = await getInvoiceIntelligence(supabase, companyId);
+    const filtered = status ? invoices.filter((inv) => inv.status === status) : invoices;
+    if (!filtered.length) return "No invoices found for your company.";
+    const top5 = filtered.slice(0, 5);
+    return [`Invoices (${filtered.length} total):`, ...top5.map((inv) => `${inv.invoice_id}: INR ${Number(inv.total_amount).toFixed(2)} - ${inv.status} (${inv.department ?? "N/A"})`)].join(NL);
+  }
+
+  // Vendor intelligence
+  if (/(vendor|vendors|supplier|top vendor|highest spend)/.test(lower)) {
+    const vendors = await getVendorIntelligence(supabase, companyId);
+    if (!vendors.length) return "No vendors found for your company.";
+    const sorted = vendors.sort((a, b) => Number(b.total_spend ?? 0) - Number(a.total_spend ?? 0));
+    const top5 = sorted.slice(0, 5);
+    return [`Top Vendors by Spend:`, ...top5.map((v, i) => `${i + 1}. ${v.name}: INR ${Number(v.total_spend).toFixed(2)} (${v.invoice_count} invoices)`)].join(NL);
+  }
+
+  // Budget intelligence
+  if (/(budget|budgets|over budget|remaining budget|budget left)/.test(lower)) {
+    const budgets = await getBudgetIntelligence(supabase, companyId);
+    if (!budgets.length) return "No budgets found for your company.";
+    const overBudget = budgets.filter((b) => b.is_over_budget);
+    if (/over budget/.test(lower) && overBudget.length) {
+      return [`Departments Over Budget:`, ...overBudget.map((b) => `${b.department} (${b.period}): ${Number(b.utilization_pct).toFixed(0)}% used, over by INR ${Number(Math.abs(b.remaining)).toFixed(2)}`)].join(NL);
     }
-    if (/(highest transaction|largest transaction|biggest transaction|max transaction)/.test(lower)) {
-      const { data: highest, error } = await supabase.from("transactions").select("transaction_id,amount,type,category,date").eq("company_id", companyId).order("amount", { ascending: false }).limit(1);
-      if (error) throw error;
-      results.push(highest?.[0] ? `Highest transaction: ${highest[0].transaction_id}, INR ${Number(highest[0].amount).toFixed(2)}, ${highest[0].type}, ${highest[0].category}, dated ${highest[0].date}.` : "No transactions were found for your company.");
-    }
-    facts = results.join(NL);
-  } else if (/(how many datasets|number of datasets|datasets.*present)/.test(lower)) {
+    return [`Budget Status:`, ...budgets.slice(0, 10).map((b) => `${b.department} (${b.period}): INR ${Number(b.remaining).toFixed(2)} remaining (${Number(b.utilization_pct).toFixed(0)}% used)`)].join(NL);
+  }
+
+  // Cash flow intelligence
+  if (/(cash flow|cash position|cash movement|inflow|outflow)/.test(lower)) {
+    const cashFlow = await getCashFlowIntelligence(supabase, companyId);
+    return [
+      `Cash Flow (${cashFlow.period}):`,
+      `Total Inflow: INR ${Number(cashFlow.total_inflow).toFixed(2)}`,
+      `Total Outflow: INR ${Number(cashFlow.total_outflow).toFixed(2)}`,
+      `Net Cash Flow: INR ${Number(cashFlow.net_cash_flow).toFixed(2)}`,
+      `Transactions: ${cashFlow.transaction_count}`,
+    ].join(NL);
+  }
+
+  // Payment intelligence
+  if (/(payment|payments|paid|overdue)/.test(lower)) {
+    const status = /overdue/.test(lower) ? "Pending" : undefined;
+    const payments = await getPaymentIntelligence(supabase, companyId, status);
+    if (!payments.length) return "No payments found for your company.";
+    return [`Payments (${payments.length} total):`, ...payments.slice(0, 10).map((p) => `${p.payment_id}: INR ${Number(p.amount).toFixed(2)} - ${p.status} (${p.payment_date ?? "N/A"})`)].join(NL);
+  }
+
+  // Decision intelligence
+  if (/(decision|decisions|approval|review|reject)/.test(lower)) {
+    const decisions = await getDecisionIntelligence(supabase, companyId);
+    if (!decisions.length) return "No decisions found for your company.";
+    return [`Recent Decisions:`, ...decisions.slice(0, 10).map((d) => `${d.decision_id}: ${d.recommendation} for ${d.invoice_id} (${Number(d.confidence_score ?? 0).toFixed(2)} confidence)`)].join(NL);
+  }
+
+  // Anomaly intelligence
+  if (/(anomal|unusual|suspicious|risky|risk alert)/.test(lower)) {
+    const anomalies = await getAnomalyIntelligence(supabase, companyId);
+    if (!anomalies.length) return "No unusual invoices detected for your company.";
+    return [`Unusual Invoices:`, ...anomalies.slice(0, 10).map((a) => `${a.invoice_id}: Anomaly ${Number(a.anomaly_score).toFixed(0)}%, Duplicate ${Number(a.duplicate_score).toFixed(0)}%`)].join(NL);
+  }
+
+  // Vendor bank changes
+  if (/(bank change|bank detail|vendor bank)/.test(lower)) {
+    const changes = await getVendorBankChangeIntelligence(supabase, companyId);
+    if (!changes.length) return "No vendor bank changes found for your company.";
+    return [`Vendor Bank Changes:`, ...changes.slice(0, 10).map((c) => `${c.vendor_id}: ${c.old_bank_name ?? "Unknown"} → ${c.new_bank_name ?? "Unknown"} on ${c.changed_at}`)].join(NL);
+  }
+
+  // Auth/security intelligence
+  if (/(login|auth|security|user activity)/.test(lower)) {
+    const authLog = await getAuthIntelligence(supabase, companyId);
+    if (!authLog.length) return "No authentication events found for your company.";
+    return [`Recent Auth Events:`, ...authLog.slice(0, 10).map((e) => `${e.event_type} - ${e.success ? "Success" : "Failed"} (${e.timestamp})`)].join(NL);
+  }
+
+  // User count
+  if (/(how many users|number of users|user count)/.test(lower)) {
+    const { count, error } = await supabase.from("users").select("user_id", { count: "exact", head: true }).eq("company_id", companyId);
+    if (error) throw error;
+    return `Your company has ${count ?? 0} users in the FinCore Database.`;
+  }
+
+  // Dataset count
+  if (/(how many datasets|number of datasets|datasets.*present)/.test(lower)) {
     const datasetNames = ["companies", "users", "vendors", "invoices", "payments", "budgets", "transactions", "decisions", "invoice_analysis", "risk_alerts", "forecast_records"];
     const counts = await Promise.all(datasetNames.map(async (table) => {
-      if (table === "invoice_analysis") {
-        const { data: scopedInvoices, error: invoiceError } = await supabase.from("invoices").select("invoice_id").eq("company_id", companyId).limit(500);
-        if (invoiceError || !scopedInvoices?.length) return { table, count: invoiceError ? null : 0 };
-        const { count, error } = await supabase.from(table).select("invoice_id", { count: "exact", head: true }).in("invoice_id", scopedInvoices.map((row) => row.invoice_id));
-        return { table, count: error ? null : count ?? 0 };
-      }
       const { count, error } = await supabase.from(table).select("*", { count: "exact", head: true }).eq("company_id", companyId);
       return { table, count: error ? null : count ?? 0 };
     }));
-    facts = ["FinCore currently exposes these approved company-scoped datasets:", ...counts.map((item) => `- ${item.table}: ${item.count === null ? "unavailable" : `${item.count} records`}`)].join(NL);
-  } else if (/(how many invoices|number of invoices|invoice count|invoices.*do we have)/.test(lower)) {
-    const { count, error } = await supabase.from("invoices").select("invoice_id", { count: "exact", head: true }).eq("company_id", companyId);
-    if (error) throw error;
-    facts = `Your company currently has ${count ?? 0} invoices in the FinCore Database.`;
-  } else if (/(how much.*spend|spend this month|monthly spend|overview)/.test(lower)) {
-    const monthlySpend = rows.filter((row) => String(row.date).startsWith(currentPeriod)).reduce((sum, row) => sum + Number(row.total_amount), 0);
-    const { data: budgets, error: budgetError } = await supabase.from("budgets").select("allocated,spent").eq("company_id", companyId).eq("period", currentPeriod);
-    if (budgetError) throw budgetError;
-    const allocated = (budgets ?? []).reduce((sum, row) => sum + Number(row.allocated), 0);
-    const spent = (budgets ?? []).reduce((sum, row) => sum + Number(row.spent), 0);
-    facts = `Monthly spend for ${currentPeriod}: INR ${monthlySpend.toFixed(2)}. Budget utilization: ${allocated > 0 ? Math.round((spent / allocated) * 100) : 0}%. Pending invoices: ${rows.filter((row) => row.status === "Pending").length}.`;
-  } else if (/(highest spend|top vendor|biggest vendor)/.test(lower)) {
-    const { data: vendors, error: vendorError } = await supabase.from("vendors").select("vendor_id,name").eq("company_id", companyId);
-    if (vendorError) throw vendorError;
-    const ranked = (vendors ?? []).map((vendor) => ({ name: vendor.name, total: rows.filter((row) => row.vendor_id === vendor.vendor_id).reduce((sum, row) => sum + Number(row.total_amount), 0) })).sort((a, b) => b.total - a.total).slice(0, 5);
-    facts = ranked.length ? ["Top vendors by total spend:", ...ranked.map((row, index) => `${index + 1}. ${row.name}: INR ${row.total.toFixed(2)}`)].join(NL) : "No vendor spend data was found for this company.";
-  } else if (/(pending invoice|unpaid invoice)/.test(lower)) {
-    const pending = rows.filter((row) => row.status === "Pending" || row.status === "Overdue").sort((a, b) => Number(b.total_amount) - Number(a.total_amount)).slice(0, 5);
-    facts = pending.length ? ["Pending invoices:", ...pending.map((row) => `${row.invoice_id}: INR ${Number(row.total_amount).toFixed(2)} (${row.status})`)].join(NL) : "No pending invoices right now.";
-  } else if (/(risky|suspicious|risk alert|anomal)/.test(lower)) {
-    const { data: analyses, error: analysisError } = await supabase.from("invoice_analysis").select("invoice_id,anomaly_score,duplicate_score,vendor_risk_snapshot").in("invoice_id", rows.filter((row) => row.status === "Pending").map((row) => row.invoice_id)).order("anomaly_score", { ascending: false }).limit(5);
-    if (analysisError) throw analysisError;
-    facts = analyses?.length ? ["Highest-risk pending invoices:", ...analyses.map((row) => `${row.invoice_id}: anomaly ${Number(row.anomaly_score ?? 0)}/100, duplicate ${Number(row.duplicate_score ?? 0)}%, vendor risk ${(row.vendor_risk_snapshot as Record<string, unknown> | null)?.computed_risk ?? "unknown"}`)].join(NL) : "No analyzed risk alerts were found.";
-  } else if (/(over budget|overspend|budget left|remaining budget|how much budget)/.test(lower)) {
-    const { data: budgets, error: budgetError } = await supabase.from("budgets").select("department,allocated,spent,remaining").eq("company_id", companyId).eq("period", currentPeriod).order("remaining", { ascending: true }).limit(10);
-    if (budgetError) throw budgetError;
-    facts = budgets?.length ? ["Budget status:", ...budgets.map((row) => `${row.department}: INR ${Number(row.remaining).toFixed(2)} remaining (${Number(row.allocated) > 0 ? Math.round((Number(row.spent) / Number(row.allocated)) * 100) : 0}% used)`)].join(NL) : `No budget was found for ${currentPeriod}.`;
-  } else if (/(afford|can we pay|can i pay)/.test(lower)) {
-    const amount = extractQuestionAmount(question);
-    if (amount === null) return "Please include an invoice amount, for example: Can we afford an INR 300000 invoice?";
-    const { data: budgets, error: budgetError } = await supabase.from("budgets").select("department,allocated,spent,remaining").eq("company_id", companyId).eq("period", currentPeriod).limit(20);
-    if (budgetError) throw budgetError;
-    const totalAllocated = (budgets ?? []).reduce((sum, row) => sum + Number(row.allocated), 0);
-    const totalSpent = (budgets ?? []).reduce((sum, row) => sum + Number(row.spent), 0);
-    facts = `Affordability check for INR ${amount.toFixed(2)}: current spend INR ${totalSpent.toFixed(2)} of INR ${totalAllocated.toFixed(2)}; projected utilization after payment ${totalAllocated > 0 ? Math.round(((totalSpent + amount) / totalAllocated) * 100) : 0}%. This is a budget arithmetic check, not an approval.`;
-  } else if (/(cash position|cash flow|forecast)/.test(lower)) {
-    const { data: transactions, error: transactionError } = await supabase.from("transactions").select("type,amount,date").eq("company_id", companyId).limit(1000);
-    if (transactionError) throw transactionError;
-    const inflow = (transactions ?? []).filter((row) => row.type === "inflow").reduce((sum, row) => sum + Number(row.amount), 0);
-    const outflow = (transactions ?? []).filter((row) => row.type === "outflow").reduce((sum, row) => sum + Number(row.amount), 0);
-    facts = `Historical cash-flow summary: inflow INR ${inflow.toFixed(2)}, outflow INR ${outflow.toFixed(2)}, net INR ${(inflow - outflow).toFixed(2)}. Estimate based on historical patterns - not a guaranteed forecast.`;
-  } else {
-    return ["I can answer questions about:", "- monthly spend and overview", "- top vendors", "- pending or risky invoices", "- budgets and affordability", "- cash-flow summaries", "", "Please rephrase your question or type menu."].join(NL);
+    return ["FinCore datasets for your company:", ...counts.map((item) => `- ${item.table}: ${item.count === null ? "unavailable" : `${item.count} records`}`)].join(NL);
   }
-  return explainFinancialFacts(question, facts);
+
+  // Default: use safe query executor
+  return "";
 }
 
 const WORKFLOW_ROLES = new Set(["admin", "finance_manager", "department_head"]);
@@ -2187,7 +2367,7 @@ Deno.serve(async (req) => {
           } else {
             const numericReply = await handleNumericMenu(supabase, linkedUser.company_id, content);
             const forecastReply = numericReply ?? await handleForecastCommand(supabase, linkedUser.company_id, content);
-          const workflowReply = forecastReply ?? await handleWorkflowCommand(supabase, linkedAccount.user_id, linkedUser.company_id, linkedUser.role, content);
+            const workflowReply = forecastReply ?? await handleWorkflowCommand(supabase, linkedAccount.user_id, linkedUser.company_id, linkedUser.role, content);
           if (workflowReply) {
             replyText = workflowReply;
           } else {
@@ -2206,10 +2386,8 @@ Deno.serve(async (req) => {
             }
           }
         }
-      } else {
-          replyText = buildReply(messageType, content);
-        }
       }
+    }
 
       const { error: outboundInsertError } = await supabase.from("conversation_messages").insert({
         session_id: sessionId,

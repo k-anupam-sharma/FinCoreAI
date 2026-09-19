@@ -1092,6 +1092,30 @@ Qwen 3.7 Plus is currently used for OCR and also for Q&A/classification. This ch
 
 ---
 
+## FinCore Intelligence Query Functions
+
+### Context
+
+The chatbot needed dedicated query functions for each intelligence domain to provide structured, reliable responses instead of relying solely on AI query planning.
+
+### Implementation
+
+- [x] Created `query_logs` table for audit trail
+- [x] Implemented `getCompanyOverview()` - company info, totals, cash position, risk alerts
+- [x] Implemented `getInvoiceIntelligence()` - invoice details with optional filtering
+- [x] Implemented `getVendorIntelligence()` - vendor spend, invoice count, bank changes
+- [x] Implemented `getBudgetIntelligence()` - budget status with utilization calculations
+- [x] Implemented `getCashFlowIntelligence()` - inflows, outflows, net cash, category breakdown
+- [x] Implemented `getPaymentIntelligence()` - payment status and details
+- [x] Implemented `getDecisionIntelligence()` - decision recommendations and reasoning
+- [x] Implemented `getAnomalyIntelligence()` - high-risk invoices with anomaly/duplicate scores
+- [x] Implemented `getAuthIntelligence()` - authentication event history
+- [x] Implemented `getVendorBankChangeIntelligence()` - vendor bank change history
+- [x] Updated `answerFinancialQuestion()` to use intelligence functions for common queries
+- [x] Deployed and verified with lint, TypeScript, and 35 regression tests passing
+
+---
+
 ## Hybrid Query System (Option C)
 
 ### Context
