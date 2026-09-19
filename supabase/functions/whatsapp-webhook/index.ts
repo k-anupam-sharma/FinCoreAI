@@ -1568,14 +1568,34 @@ async function answerFinancialQuestion(supabase: SupabaseClient, companyId: stri
 
   // Vendor risk (check BEFORE generic vendor pattern)
   if (/(vendor.*risk|risky vendor|highest risk|vendor.*high risk)/.test(lower)) {
-    const vendors = await getVendorIntelligence(supabase, companyId);
-    if (!vendors.length) return "No vendors found for your company.";
-    const sorted = vendors.sort((a, b) => {
+    const { data: invoices } = await supabase.from("invoices").select("invoice_id,vendor_id").eq("company_id", companyId);
+    const invoiceIds = (invoices ?? []).map((row) => row.invoice_id);
+    if (!invoiceIds.length) return "No invoices found to analyze vendor risk.";
+    const { data: analyses } = await supabase.from("invoice_analysis").select("invoice_id,vendor_risk_snapshot").in("invoice_id", invoiceIds);
+    const { data: vendors } = await supabase.from("vendors").select("vendor_id,name").eq("company_id", companyId);
+    const vendorMap = new Map((vendors ?? []).map((v) => [v.vendor_id, v.name]));
+    const vendorRisks = new Map<string, { risk: string; count: number }>();
+    for (const analysis of analyses ?? []) {
+      const invoice = invoices?.find((inv) => inv.invoice_id === analysis.invoice_id);
+      if (!invoice?.vendor_id) continue;
+      const risk = String((analysis.vendor_risk_snapshot as Record<string, unknown>)?.computed_risk ?? "Low");
+      const existing = vendorRisks.get(invoice.vendor_id) ?? { risk: "Low", count: 0 };
       const riskOrder = { High: 3, Medium: 2, Low: 1 };
-      return (riskOrder[String((b.vendor_risk_snapshot as Record<string, unknown>)?.computed_risk ?? "Low")] ?? 0) - (riskOrder[String((a.vendor_risk_snapshot as Record<string, unknown>)?.computed_risk ?? "Low")] ?? 0);
-    });
-    const top5 = sorted.slice(0, 5);
-    return [`Vendors by Risk Level:`, ...top5.map((v, i) => `${i + 1}. ${v.name}: Risk ${(v.vendor_risk_snapshot as Record<string, unknown>)?.computed_risk ?? "Unknown"} - INR ${Number(v.total_spend).toFixed(2)} spend`)].join(NL);
+      if ((riskOrder[risk as keyof typeof riskOrder] ?? 0) > (riskOrder[existing.risk as keyof typeof riskOrder] ?? 0)) {
+        existing.risk = risk;
+      }
+      existing.count++;
+      vendorRisks.set(invoice.vendor_id, existing);
+    }
+    const sorted = Array.from(vendorRisks.entries())
+      .map(([vendorId, data]) => ({ vendorId, name: vendorMap.get(vendorId) ?? vendorId, ...data }))
+      .sort((a, b) => {
+        const riskOrder = { High: 3, Medium: 2, Low: 1 };
+        return (riskOrder[b.risk as keyof typeof riskOrder] ?? 0) - (riskOrder[a.risk as keyof typeof riskOrder] ?? 0);
+      })
+      .slice(0, 5);
+    if (!sorted.length) return "No vendor risk data available.";
+    return [`Vendors by Risk Level:`, ...sorted.map((v, i) => `${i + 1}. ${v.name}: ${v.risk} risk (${v.count} invoices)`)].join(NL);
   }
 
   // Company overview
