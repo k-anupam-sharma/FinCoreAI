@@ -1544,30 +1544,10 @@ async function answerFinancialQuestion(supabase: SupabaseClient, companyId: stri
   try {
   const lower = question.toLowerCase();
 
-  // Risk/Anomaly detection (check BEFORE generic invoice pattern)
-  if (/(risky|suspicious|risk alert|anomal|unusual)/.test(lower)) {
-    const { data: invoices } = await supabase.from("invoices").select("invoice_id").eq("company_id", companyId).in("status", ["Pending", "Overdue"]);
-    const invoiceIds = (invoices ?? []).map((row) => row.invoice_id);
-    if (!invoiceIds.length) return "No pending invoices to analyze for risk.";
-    const { data: analyses } = await supabase.from("invoice_analysis").select("invoice_id,anomaly_score,duplicate_score,vendor_risk_snapshot").in("invoice_id", invoiceIds).order("anomaly_score", { ascending: false }).limit(5);
-    const rows = analyses ?? [];
-    if (!rows.length) return "No analyzed risk alerts were found.";
-    return ["Highest-risk pending invoices:", ...rows.map((row) => `${row.invoice_id}: anomaly ${Number(row.anomaly_score ?? 0)}/100, duplicate ${Number(row.duplicate_score ?? 0)}%, vendor risk ${(row.vendor_risk_snapshot as Record<string, unknown> | null)?.computed_risk ?? "unknown"}`)].join(NL);
-  }
+  // === HIGH-PRIORITY SPECIFIC PATTERNS (checked first) ===
 
-  // Duplicate detection
-  if (/(duplicate|duplicates|same invoice|repeated invoice)/.test(lower)) {
-    const { data: invoices } = await supabase.from("invoices").select("invoice_id").eq("company_id", companyId);
-    const invoiceIds = (invoices ?? []).map((row) => row.invoice_id);
-    if (!invoiceIds.length) return "No invoices found to check for duplicates.";
-    const { data: analyses } = await supabase.from("invoice_analysis").select("invoice_id,duplicate_score,duplicate_evidence").in("invoice_id", invoiceIds).order("duplicate_score", { ascending: false }).limit(5);
-    const rows = (analyses ?? []).filter((row) => Number(row.duplicate_score ?? 0) > 50);
-    if (!rows.length) return "No duplicate invoices detected. All invoices appear to be unique.";
-    return ["Potential duplicate invoices:", ...rows.map((row) => `${row.invoice_id}: ${Number(row.duplicate_score).toFixed(0)}% similarity - ${(row.duplicate_evidence as Record<string, unknown> | null)?.best_match?.invoice_id ?? "N/A"}`)].join(NL);
-  }
-
-  // Vendor risk (check BEFORE generic vendor pattern)
-  if (/(vendor.*risk|risky vendor|highest risk|vendor.*high risk)/.test(lower)) {
+  // Vendor risk (BEFORE generic vendor)
+  if (/(vendor.*risk|risky vendor|highest risk.*vendor|vendor.*high risk|which vendor.*risk)/.test(lower)) {
     const { data: invoices } = await supabase.from("invoices").select("invoice_id,vendor_id").eq("company_id", companyId);
     const invoiceIds = (invoices ?? []).map((row) => row.invoice_id);
     if (!invoiceIds.length) return "No invoices found to analyze vendor risk.";
@@ -1598,6 +1578,46 @@ async function answerFinancialQuestion(supabase: SupabaseClient, companyId: stri
     return [`Vendors by Risk Level:`, ...sorted.map((v, i) => `${i + 1}. ${v.name}: ${v.risk} risk (${v.count} invoices)`)].join(NL);
   }
 
+  // Invoice risk/anomaly (BEFORE generic invoice)
+  if (/(risky.*invoice|suspicious.*invoice|risk.*invoice|invoice.*risk|invoice.*anomal|unusual.*invoice|invoice.*unusual)/.test(lower)) {
+    const { data: invoices } = await supabase.from("invoices").select("invoice_id").eq("company_id", companyId).in("status", ["Pending", "Overdue"]);
+    const invoiceIds = (invoices ?? []).map((row) => row.invoice_id);
+    if (!invoiceIds.length) return "No pending invoices to analyze for risk.";
+    const { data: analyses } = await supabase.from("invoice_analysis").select("invoice_id,anomaly_score,duplicate_score,vendor_risk_snapshot").in("invoice_id", invoiceIds).order("anomaly_score", { ascending: false }).limit(5);
+    const rows = analyses ?? [];
+    if (!rows.length) return "No analyzed risk alerts were found.";
+    return ["Highest-risk pending invoices:", ...rows.map((row) => `${row.invoice_id}: anomaly ${Number(row.anomaly_score ?? 0)}/100, duplicate ${Number(row.duplicate_score ?? 0)}%, vendor risk ${(row.vendor_risk_snapshot as Record<string, unknown> | null)?.computed_risk ?? "unknown"}`)].join(NL);
+  }
+
+  // Duplicate invoices (BEFORE generic invoice)
+  if (/(duplicate.*invoice|invoice.*duplicate|same.*invoice|repeated.*invoice)/.test(lower)) {
+    const { data: invoices } = await supabase.from("invoices").select("invoice_id").eq("company_id", companyId);
+    const invoiceIds = (invoices ?? []).map((row) => row.invoice_id);
+    if (!invoiceIds.length) return "No invoices found to check for duplicates.";
+    const { data: analyses } = await supabase.from("invoice_analysis").select("invoice_id,duplicate_score,duplicate_evidence").in("invoice_id", invoiceIds).order("duplicate_score", { ascending: false }).limit(5);
+    const rows = (analyses ?? []).filter((row) => Number(row.duplicate_score ?? 0) > 50);
+    if (!rows.length) return "No duplicate invoices detected. All invoices appear to be unique.";
+    return ["Potential duplicate invoices:", ...rows.map((row) => `${row.invoice_id}: ${Number(row.duplicate_score).toFixed(0)}% similarity - ${(row.duplicate_evidence as Record<string, unknown> | null)?.best_match?.invoice_id ?? "N/A"}`)].join(NL);
+  }
+
+  // Overdue payments (BEFORE generic payment)
+  if (/(overdue.*payment|payment.*overdue|late.*payment|payment.*late)/.test(lower)) {
+    const { data: payments } = await supabase.from("payments").select("payment_id,invoice_id,amount,status,payment_date").eq("company_id", companyId).eq("status", "Pending");
+    const rows = payments ?? [];
+    if (!rows.length) return "No overdue payments found.";
+    return [`Overdue Payments (${rows.length} total):`, ...rows.slice(0, 10).map((p) => `${p.payment_id}: INR ${Number(p.amount).toFixed(2)} - due ${p.payment_date ?? "N/A"}`)].join(NL);
+  }
+
+  // Over budget (BEFORE generic budget)
+  if (/(over.*budget|budget.*over|overspend|exceed.*budget|budget.*exceed)/.test(lower)) {
+    const { data: budgets } = await supabase.from("budgets").select("department,period,allocated,spent,remaining").eq("company_id", companyId);
+    const rows = (budgets ?? []).filter((b) => Number(b.remaining ?? 0) < 0);
+    if (!rows.length) return "No departments are over budget.";
+    return [`Departments Over Budget:`, ...rows.map((b) => `${b.department} (${b.period}): ${Number(b.allocated) > 0 ? Math.round((Number(b.spent) / Number(b.allocated)) * 100) : 0}% used, over by INR ${Number(Math.abs(b.remaining)).toFixed(2)}`)].join(NL);
+  }
+
+  // === GENERIC PATTERNS (checked after specific ones) ===
+
   // Company overview
   if (/(overview|summary|company info|total spending|total spend|cash position|monthly spend|spend this month)/.test(lower)) {
     const overview = await getCompanyOverview(supabase, companyId);
@@ -1615,8 +1635,8 @@ async function answerFinancialQuestion(supabase: SupabaseClient, companyId: stri
     ].join(NL);
   }
 
-  // Invoice intelligence
-  if (/(invoice|invoices|pending invoice|unpaid)/.test(lower)) {
+  // Invoice intelligence (generic - excludes risk/duplicate)
+  if (/(invoice|invoices|pending invoice|unpaid)/.test(lower) && !/(risk|risky|suspicious|anomal|duplicate|repeated)/.test(lower)) {
     const status = /pending/.test(lower) ? "Pending" : undefined;
     const invoices = await getInvoiceIntelligence(supabase, companyId);
     const filtered = status ? invoices.filter((inv) => inv.status === status) : invoices;
@@ -1625,8 +1645,8 @@ async function answerFinancialQuestion(supabase: SupabaseClient, companyId: stri
     return [`Invoices (${filtered.length} total):`, ...top5.map((inv) => `${inv.invoice_id}: INR ${Number(inv.total_amount).toFixed(2)} - ${inv.status} (${inv.department ?? "N/A"})`)].join(NL);
   }
 
-  // Vendor intelligence
-  if (/(vendor|vendors|supplier|top vendor|highest spend)/.test(lower)) {
+  // Vendor intelligence (generic - excludes risk)
+  if (/(vendor|vendors|supplier|top vendor|highest spend)/.test(lower) && !/(risk|risky|high risk)/.test(lower)) {
     const vendors = await getVendorIntelligence(supabase, companyId);
     if (!vendors.length) return "No vendors found for your company.";
     const sorted = vendors.sort((a, b) => Number(b.total_spend ?? 0) - Number(a.total_spend ?? 0));
@@ -1634,14 +1654,10 @@ async function answerFinancialQuestion(supabase: SupabaseClient, companyId: stri
     return [`Top Vendors by Spend:`, ...top5.map((v, i) => `${i + 1}. ${v.name}: INR ${Number(v.total_spend).toFixed(2)} (${v.invoice_count} invoices)`)].join(NL);
   }
 
-  // Budget intelligence
-  if (/(budget|budgets|over budget|remaining budget|budget left)/.test(lower)) {
+  // Budget intelligence (generic - excludes over budget)
+  if (/(budget|budgets|remaining budget|budget left|budget status)/.test(lower) && !/(over.*budget|overspend|exceed)/.test(lower)) {
     const budgets = await getBudgetIntelligence(supabase, companyId);
     if (!budgets.length) return "No budgets found for your company.";
-    const overBudget = budgets.filter((b) => b.is_over_budget);
-    if (/over budget/.test(lower) && overBudget.length) {
-      return [`Departments Over Budget:`, ...overBudget.map((b) => `${b.department} (${b.period}): ${Number(b.utilization_pct).toFixed(0)}% used, over by INR ${Number(Math.abs(b.remaining)).toFixed(2)}`)].join(NL);
-    }
     return [`Budget Status:`, ...budgets.slice(0, 10).map((b) => `${b.department} (${b.period}): INR ${Number(b.remaining).toFixed(2)} remaining (${Number(b.utilization_pct).toFixed(0)}% used)`)].join(NL);
   }
 
@@ -1657,10 +1673,9 @@ async function answerFinancialQuestion(supabase: SupabaseClient, companyId: stri
     ].join(NL);
   }
 
-  // Payment intelligence
-  if (/(payment|payments|paid|overdue)/.test(lower)) {
-    const status = /overdue/.test(lower) ? "Pending" : undefined;
-    const payments = await getPaymentIntelligence(supabase, companyId, status);
+  // Payment intelligence (generic - excludes overdue)
+  if (/(payment|payments|paid)/.test(lower) && !/(overdue|late)/.test(lower)) {
+    const payments = await getPaymentIntelligence(supabase, companyId);
     if (!payments.length) return "No payments found for your company.";
     return [`Payments (${payments.length} total):`, ...payments.slice(0, 10).map((p) => `${p.payment_id}: INR ${Number(p.amount).toFixed(2)} - ${p.status} (${p.payment_date ?? "N/A"})`)].join(NL);
   }
@@ -1672,7 +1687,7 @@ async function answerFinancialQuestion(supabase: SupabaseClient, companyId: stri
     return [`Recent Decisions:`, ...decisions.slice(0, 10).map((d) => `${d.decision_id}: ${d.recommendation} for ${d.invoice_id} (${Number(d.confidence_score ?? 0).toFixed(2)} confidence)`)].join(NL);
   }
 
-  // Anomaly intelligence
+  // Anomaly intelligence (generic)
   if (/(anomal|unusual|suspicious|risky|risk alert)/.test(lower)) {
     const anomalies = await getAnomalyIntelligence(supabase, companyId);
     if (!anomalies.length) return "No unusual invoices detected for your company.";

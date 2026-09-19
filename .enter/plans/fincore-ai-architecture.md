@@ -1116,6 +1116,47 @@ The chatbot needed dedicated query functions for each intelligence domain to pro
 
 ---
 
+## Comprehensive Pattern Matching Fix
+
+### Context
+
+The bot was returning wrong answers because generic patterns (like "vendor") were matching before specific patterns (like "vendor risk"). This affected ALL datasets, not just vendors.
+
+### Implementation
+
+- [x] Added high-priority specific patterns at the TOP of the function
+- [x] Vendor risk pattern (before generic vendor)
+- [x] Invoice risk/anomaly pattern (before generic invoice)
+- [x] Duplicate invoice pattern (before generic invoice)
+- [x] Overdue payment pattern (before generic payment)
+- [x] Over budget pattern (before generic budget)
+- [x] Updated all generic patterns to EXCLUDE specific keywords
+- [x] Deployed and verified with lint, TypeScript, and 35 regression tests passing
+
+### Pattern Matching Order
+
+1. **Specific patterns** (checked first):
+   - Vendor risk
+   - Invoice risk/anomaly
+   - Duplicate invoices
+   - Overdue payments
+   - Over budget departments
+
+2. **Generic patterns** (checked after, with exclusions):
+   - Company overview
+   - Invoices (excludes risk/duplicate)
+   - Vendors (excludes risk)
+   - Budgets (excludes over budget)
+   - Cash flow
+   - Payments (excludes overdue)
+   - Decisions
+   - Anomalies
+   - Bank changes
+   - Auth/security
+   - User/dataset counts
+
+---
+
 ## Company Switching Command
 
 ### Implementation
