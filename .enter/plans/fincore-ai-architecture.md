@@ -1083,12 +1083,12 @@ Qwen 3.7 Plus is currently used for OCR and also for Q&A/classification. This ch
 
 ### Implementation checklist
 
-- [x] Add a Gemini text helper for non-streaming conversational use by collecting the Gemini SSE response with timeout handling.
-- [x] Route fact explanation, natural-language intent classification, and dataset query planning to Gemini Lite.
-- [x] Remove Qwen usage from chatbot/Q&A/classifier paths and retain Qwen only for invoice OCR/extraction.
-- [x] Preserve Database allowlists, company isolation, Storage privacy, and backend action authorization.
-- [x] Update docs to describe the model split and protected access boundary.
-- [x] Deploy and verify both OCR and chatbot paths separately through deployment, lint, TypeScript, and regression tests.
+- [x] Replaced Gemini with NVIDIA API (Llama 3.1 70B) for all chatbot/Q&A/classification tasks
+- [x] Removed Gemini model completely from the codebase
+- [x] Qwen 3.7 Plus retained only for invoice OCR/extraction
+- [x] NVIDIA API handles: intent classification, dataset query planning, fact explanation, financial Q&A
+- [x] 20-second timeout for NVIDIA API calls
+- [x] Deployed and verified with lint, TypeScript, and 35 regression tests passing
 
 ---
 

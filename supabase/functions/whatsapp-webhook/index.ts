@@ -44,43 +44,34 @@ async function fetchWithTimeout(input: RequestInfo | URL, init: RequestInit = {}
   }
 }
 
-async function callGeminiText(systemPrompt: string, userText: string, maxOutputTokens = 500): Promise<string | null> {
-  if (!AI_API_TOKEN) return null;
+async function callNvidiaAPI(systemPrompt: string, userText: string, maxOutputTokens = 500): Promise<string | null> {
+  if (!NVIDIA_API_KEY) return null;
   try {
-    const response = await fetchWithTimeout(`${AI_API_BASE}/code/api/ai/v1beta/models/${CHAT_MODEL}:streamGenerateContent`, {
+    const response = await fetchWithTimeout(`${NVIDIA_API_BASE}/chat/completions`, {
       method: "POST",
       headers: {
-        "x-goog-api-key": AI_API_TOKEN,
+        Authorization: `Bearer ${NVIDIA_API_KEY}`,
         "Content-Type": "application/json",
-        "X-Enter-Project-ID": AI_PROJECT_ID,
-        "X-Session-ID": `chatbot-${crypto.randomUUID()}`,
       },
       body: JSON.stringify({
-        systemInstruction: { parts: [{ text: systemPrompt }] },
-        contents: [{ role: "user", parts: [{ text: userText }] }],
-        generationConfig: { temperature: 0, maxOutputTokens },
+        model: "meta/llama-3.1-70b-instruct",
+        messages: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: userText },
+        ],
+        max_tokens: maxOutputTokens,
+        temperature: 0,
       }),
-    });
-    const body = await response.text();
+    }, 20000);
+    const data = await response.json();
     if (!response.ok) {
-      console.error(`whatsapp-webhook: Gemini chatbot request failed (${response.status})`);
+      console.error(`whatsapp-webhook: NVIDIA API request failed (${response.status})`);
       return null;
     }
-    const chunks: string[] = [];
-    for (const line of body.split(String.fromCharCode(10))) {
-      const trimmed = line.trim();
-      if (!trimmed.startsWith("data:")) continue;
-      try {
-        const data = JSON.parse(trimmed.slice(5).trim());
-        const text = data?.candidates?.[0]?.content?.parts?.map((part: { text?: string }) => part.text ?? "").join("");
-        if (text) chunks.push(text);
-      } catch {
-        // Ignore non-JSON SSE lines and continue collecting text chunks.
-      }
-    }
-    return chunks.join("").trim() || null;
+    const content = data?.choices?.[0]?.message?.content;
+    return typeof content === "string" && content.trim() ? content.trim() : null;
   } catch (error) {
-    console.error("whatsapp-webhook: Gemini chatbot request failed", error instanceof Error ? error.message : error);
+    console.error("whatsapp-webhook: NVIDIA API request failed", error instanceof Error ? error.message : error);
     return null;
   }
 }
@@ -285,7 +276,6 @@ const AI_API_TOKEN = Deno.env.get("AI_API_TOKEN_207130282296") ?? "";
 const AI_API_BASE = "https://api.enter.pro";
 const AI_PROJECT_ID = "20713028229644c2839e687ec9379bee";
 const OCR_MODEL = "alibaba/qwen-3.7-plus";
-const CHAT_MODEL = "google/gemini-3.1-flash-lite-preview";
 const NVIDIA_API_KEY = Deno.env.get("NVIDIA_API_KEY") ?? "";
 const NVIDIA_API_BASE = "https://integrate.api.nvidia.com/v1";
 const ALLOWED_INVOICE_TYPES = new Set(["application/pdf", "image/jpeg", "image/png"]);
@@ -388,7 +378,7 @@ function normalizeSafeQuery(value: Record<string, unknown>): SafeQuery | null {
 }
 
 async function classifySafeQuery(question: string): Promise<SafeQuery | null> {
-  const content = await callGeminiText(
+  const content = await callNvidiaAPI(
     `You are a FinCore query planner. Return JSON only with: in_scope (boolean), table (one approved table), columns (array of approved columns), filters (array with column/operator/value), joins (array with to_table), aggregations (optional), group_by (optional), order_by (optional), order_direction (asc/desc), limit (1-100), original_question (string).
 
 Approved tables: ${Object.keys(APPROVED_TABLES).join(', ')}.
@@ -472,7 +462,7 @@ async function executeSafeQuery(query: SafeQuery, companyId: string, userId: str
 
 async function explainQueryResult(question: string, data: unknown[], query: SafeQuery): Promise<string> {
   const facts = JSON.stringify({ table: query.table, row_count: data.length, rows: data.slice(0, 20) }, null, 2).slice(0, 18000);
-  const geminiAnswer = await callGeminiText(
+  const geminiAnswer = await callNvidiaAPI(
     'Answer the user question using only the supplied database facts. Be concise. If data is empty, say so clearly.',
     `Question: ${question}${NL}${NL}Database result:${NL}${facts}`,
     600,
@@ -1369,7 +1359,7 @@ function extractQuestionAmount(question: string): number | null {
 }
 
 async function explainFinancialFacts(question: string, facts: string): Promise<string> {
-  const answer = await callGeminiText(
+  const answer = await callNvidiaAPI(
     "Answer the user's finance question using only the supplied company-scoped facts. Do not invent, recalculate, or add unsupported numbers. Be concise and preserve disclaimers.",
     `Question: ${question}${NL}${NL}Facts:${NL}${facts}`,
     500,
@@ -1424,7 +1414,7 @@ function normalizeNaturalLanguageIntent(value: Record<string, unknown>): Natural
 }
 
 async function classifyNaturalLanguageCommand(text: string): Promise<NaturalLanguageIntent | null> {
-  const content = await callGeminiText(
+  const content = await callNvidiaAPI(
     "Classify the user's finance command. Return JSON only with intent (menu|alerts|workflow_action|forecast|qna|unknown), action (approve|review|defer|reject|null), invoice_id (INV-... or null), alert_id (or null), horizon_days (30|60|90|null), and question (or null). Never invent IDs.",
     text,
     220,
@@ -1489,7 +1479,7 @@ function normalizeDatasetPlan(value: Record<string, unknown>): DatasetPlan | nul
 }
 
 async function classifyDatasetPlan(question: string): Promise<DatasetPlan | null> {
-  const content = await callGeminiText(
+  const content = await callNvidiaAPI(
     "Create a read-only FinCore dataset query plan as JSON only. Allowed tables are companies, users, vendors, invoices, payments, budgets, transactions, decisions, invoice_analysis, risk_alerts, forecast_records. Use only fields needed to answer. Set in_scope false for non-financial or external questions. Never request mutations, joins, raw SQL, credentials, or another company.",
     question,
     500,
@@ -1523,7 +1513,7 @@ async function answerFullCompanyDatasetQuestion(supabase: SupabaseClient, compan
   if (failed?.error) throw failed.error;
   const snapshot = { company: company.data, users: users.data, vendors: vendors.data, invoices: invoices.data, payments: payments.data, budgets: budgets.data, transactions: transactions.data, decisions: decisions.data, vendor_bank_changes: bankChanges.data, auth_log: authLog.data, invoice_analysis: analyses.data, invoice_items: items.data, risk_alerts: alerts.data, forecast_records: forecasts.data };
   const facts = JSON.stringify(snapshot).slice(0, 350000);
-  return callGeminiText(
+  return callNvidiaAPI(
     "You are the FinCore demo chatbot. Answer only from the complete company-scoped dataset snapshot supplied below. You may answer any question about those records, but never invent values, use external knowledge, reveal secrets, expose another company, or claim data that is absent. If a value is absent or a dataset is empty, say so clearly. Do not perform mutations. Keep the answer concise and show calculations only when directly supported by the records.",
     `Question: ${question}${NL}${NL}Complete company dataset snapshot:${NL}${facts}`,
     900,
