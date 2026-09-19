@@ -524,9 +524,13 @@ async function analyzeStoredInvoice(
           },
         ],
       }),
-    });
+    }, 30000);
     const data = await response.json();
-    if (!response.ok) throw new Error(data?.error?.message ?? `AI request failed (${response.status})`);
+    if (!response.ok) {
+      const errorMsg = data?.error?.message ?? `AI request failed (${response.status})`;
+      console.error(`whatsapp-webhook: OCR API error: ${errorMsg}`);
+      throw new Error(errorMsg);
+    }
     const content = data?.choices?.[0]?.message?.content;
     const parsed = typeof content === "string" ? parseJsonObject(content) : null;
     if (!parsed) throw new Error("AI returned malformed JSON");
