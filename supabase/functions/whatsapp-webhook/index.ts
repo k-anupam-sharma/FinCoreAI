@@ -1566,6 +1566,18 @@ async function answerFinancialQuestion(supabase: SupabaseClient, companyId: stri
     return ["Potential duplicate invoices:", ...rows.map((row) => `${row.invoice_id}: ${Number(row.duplicate_score).toFixed(0)}% similarity - ${(row.duplicate_evidence as Record<string, unknown> | null)?.best_match?.invoice_id ?? "N/A"}`)].join(NL);
   }
 
+  // Vendor risk (check BEFORE generic vendor pattern)
+  if (/(vendor.*risk|risky vendor|highest risk|vendor.*high risk)/.test(lower)) {
+    const vendors = await getVendorIntelligence(supabase, companyId);
+    if (!vendors.length) return "No vendors found for your company.";
+    const sorted = vendors.sort((a, b) => {
+      const riskOrder = { High: 3, Medium: 2, Low: 1 };
+      return (riskOrder[String((b.vendor_risk_snapshot as Record<string, unknown>)?.computed_risk ?? "Low")] ?? 0) - (riskOrder[String((a.vendor_risk_snapshot as Record<string, unknown>)?.computed_risk ?? "Low")] ?? 0);
+    });
+    const top5 = sorted.slice(0, 5);
+    return [`Vendors by Risk Level:`, ...top5.map((v, i) => `${i + 1}. ${v.name}: Risk ${(v.vendor_risk_snapshot as Record<string, unknown>)?.computed_risk ?? "Unknown"} - INR ${Number(v.total_spend).toFixed(2)} spend`)].join(NL);
+  }
+
   // Company overview
   if (/(overview|summary|company info|total spending|total spend|cash position|monthly spend|spend this month)/.test(lower)) {
     const overview = await getCompanyOverview(supabase, companyId);
