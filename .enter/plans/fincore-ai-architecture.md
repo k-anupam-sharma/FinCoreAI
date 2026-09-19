@@ -1083,11 +1083,11 @@ Qwen 3.7 Plus is currently used for OCR and also for Q&A/classification. This ch
 
 ### Implementation checklist
 
-- [x] Replaced Gemini with NVIDIA API (Llama 3.1 70B) for all chatbot/Q&A/classification tasks
-- [x] Removed Gemini model completely from the codebase
+- [x] Replaced NVIDIA API with Enter AI API (ek_ key) for all chatbot/Q&A/classification tasks
+- [x] Removed NVIDIA API completely from the codebase
 - [x] Qwen 3.7 Plus retained only for invoice OCR/extraction
-- [x] NVIDIA API handles: intent classification, dataset query planning, fact explanation, financial Q&A
-- [x] 20-second timeout for NVIDIA API calls
+- [x] Enter AI API handles: intent classification, dataset query planning, fact explanation, financial Q&A, Database/Storage queries
+- [x] 20-second timeout for Enter AI API calls
 - [x] Deployed and verified with lint, TypeScript, and 35 regression tests passing
 
 ---
