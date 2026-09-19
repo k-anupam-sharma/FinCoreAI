@@ -286,6 +286,8 @@ const AI_API_BASE = "https://api.enter.pro";
 const AI_PROJECT_ID = "20713028229644c2839e687ec9379bee";
 const OCR_MODEL = "alibaba/qwen-3.7-plus";
 const CHAT_MODEL = "google/gemini-3.1-flash-lite-preview";
+const NVIDIA_API_KEY = Deno.env.get("NVIDIA_API_KEY") ?? "";
+const NVIDIA_API_BASE = "https://integrate.api.nvidia.com/v1";
 const ALLOWED_INVOICE_TYPES = new Set(["application/pdf", "image/jpeg", "image/png"]);
 
 // ---- Safe Query Executor (Hybrid Layer 2) ----
@@ -470,11 +472,50 @@ async function executeSafeQuery(query: SafeQuery, companyId: string, userId: str
 
 async function explainQueryResult(question: string, data: unknown[], query: SafeQuery): Promise<string> {
   const facts = JSON.stringify({ table: query.table, row_count: data.length, rows: data.slice(0, 20) }, null, 2).slice(0, 18000);
-  return callGeminiText(
+  const geminiAnswer = await callGeminiText(
+    'Answer the user question using only the supplied database facts. Be concise. If data is empty, say so clearly.',
+    `Question: ${question}${NL}${NL}Database result:${NL}${facts}`,
+    600,
+  );
+  if (geminiAnswer) return geminiAnswer;
+  // Fallback to NVIDIA API
+  return await callNvidiaText(
     'Answer the user question using only the supplied database facts. Be concise. If data is empty, say so clearly.',
     `Question: ${question}${NL}${NL}Database result:${NL}${facts}`,
     600,
   ) || `Query returned ${data.length} row(s) from ${query.table}.`;
+}
+
+async function callNvidiaText(systemPrompt: string, userText: string, maxTokens = 500): Promise<string | null> {
+  if (!NVIDIA_API_KEY) return null;
+  try {
+    const response = await fetchWithTimeout(`${NVIDIA_API_BASE}/chat/completions`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${NVIDIA_API_KEY}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: "meta/llama-3.1-70b-instruct",
+        messages: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: userText },
+        ],
+        max_tokens: maxTokens,
+        temperature: 0,
+      }),
+    }, 15000);
+    const data = await response.json();
+    if (!response.ok) {
+      console.error(`whatsapp-webhook: NVIDIA API request failed (${response.status})`);
+      return null;
+    }
+    const content = data?.choices?.[0]?.message?.content;
+    return typeof content === "string" && content.trim() ? content.trim() : null;
+  } catch (error) {
+    console.error("whatsapp-webhook: NVIDIA API request failed", error instanceof Error ? error.message : error);
+    return null;
+  }
 }
 
 function invoiceExtension(mimeType: string, filename?: string): string {
@@ -1623,8 +1664,16 @@ async function answerFinancialQuestion(supabase: SupabaseClient, companyId: stri
     return ["FinCore datasets for your company:", ...counts.map((item) => `- ${item.table}: ${item.count === null ? "unavailable" : `${item.count} records`}`)].join(NL);
   }
 
-  // Default: use safe query executor
-  return "";
+  // Default: use safe query executor with NVIDIA fallback
+  const safeAnswer = await answerDatasetQuestion(supabase, companyId, userId, question);
+  if (safeAnswer) return safeAnswer;
+  // Final fallback to NVIDIA API with full context
+  const fullAnswer = await callNvidiaText(
+    'You are FinCore AI, a financial intelligence assistant. Answer the user question using the company data available in the FinCore database. If you cannot answer, say so clearly.',
+    `User question: ${question}`,
+    800,
+  );
+  return fullAnswer || "I don't have enough data to answer that question. Try asking about invoices, vendors, payments, budgets, transactions, or decisions.";
 }
 
 const WORKFLOW_ROLES = new Set(["admin", "finance_manager", "department_head"]);

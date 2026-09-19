@@ -1128,6 +1128,29 @@ The chatbot needed dedicated query functions for each intelligence domain to pro
 
 ---
 
+## NVIDIA API Fallback
+
+### Context
+
+The primary AI agent (Gemini/Qwen) sometimes fails to answer questions or takes too long. A fallback API ensures reliable responses.
+
+### Implementation
+
+- [x] Stored NVIDIA API key securely as `NVIDIA_API_KEY` secret
+- [x] Added `callNvidiaText()` helper function using Llama 3.1 70B Instruct
+- [x] Integrated NVIDIA fallback into `explainQueryResult()` for query explanations
+- [x] Integrated NVIDIA fallback into `answerFinancialQuestion()` as final fallback
+- [x] 15-second timeout for NVIDIA API calls
+- [x] Deployed and verified with lint, TypeScript, and 35 regression tests passing
+
+### Fallback Chain
+
+1. **Primary:** Gemini 3.1 Flash Lite (chatbot/Q&A)
+2. **Secondary:** Qwen 3.7 Plus (OCR/extraction)
+3. **Fallback:** NVIDIA Llama 3.1 70B (when primary fails or times out)
+
+---
+
 ## Hybrid Query System (Option C)
 
 ### Context
