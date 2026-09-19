@@ -1116,6 +1116,18 @@ The chatbot needed dedicated query functions for each intelligence domain to pro
 
 ---
 
+## Company Switching Command
+
+### Implementation
+
+- [x] Added "switch company" / "change company" / "list companies" command
+- [x] Displays all 5 seeded companies with number and ID selection
+- [x] Updates user's company_id in the database
+- [x] Requires session refresh via "Hi" command after switching
+- [x] Deployed and verified with lint, TypeScript, and regression tests
+
+---
+
 ## Hybrid Query System (Option C)
 
 ### Context

@@ -1673,6 +1673,30 @@ async function scanCompanyAlerts(supabase: SupabaseClient, companyId: string): P
 async function handleWorkflowCommand(supabase: SupabaseClient, userId: string, companyId: string, role: string, text: string): Promise<string | null> {
   const lower = text.trim().toLowerCase();
   if (lower === "alerts" || lower === "risk alerts") return scanCompanyAlerts(supabase, companyId);
+  if (lower === "switch company" || lower === "change company" || lower === "list companies") {
+    const { data: companies, error } = await supabase.from("companies").select("company_id,name,industry").order("company_id");
+    if (error) throw error;
+    const list = (companies ?? []).map((c, i) => `${i + 1}. ${c.company_id} - ${c.name} (${c.industry})`).join(NL);
+    return `Available companies:${NL}${list}${NL}${NL}Reply with "switch to <number>" or "switch to <company_id>" to change your active company.`;
+  }
+  const switchMatch = lower.match(/^switch to\s+(.+)$/i);
+  if (switchMatch) {
+    const target = switchMatch[1].trim();
+    const { data: companies, error } = await supabase.from("companies").select("company_id,name").order("company_id");
+    if (error) throw error;
+    const companyList = companies ?? [];
+    let targetCompany = companyList.find((c) => c.company_id.toLowerCase() === target.toLowerCase());
+    if (!targetCompany) {
+      const index = Number(target);
+      if (Number.isFinite(index) && index >= 1 && index <= companyList.length) {
+        targetCompany = companyList[index - 1];
+      }
+    }
+    if (!targetCompany) return `Company not found. Use "switch company" to see the list.`;
+    const { error: updateError } = await supabase.from("users").update({ company_id: targetCompany.company_id }).eq("user_id", userId);
+    if (updateError) throw updateError;
+    return `Switched to ${targetCompany.company_id} - ${targetCompany.name}. Send "Hi" to refresh your session.`;
+  }
   const resolveMatch = lower.match(/^resolve alert ([0-9a-f-]+)$/i);
   if (resolveMatch) {
     if (!WORKFLOW_ROLES.has(role)) return "You do not have permission to resolve alerts.";
