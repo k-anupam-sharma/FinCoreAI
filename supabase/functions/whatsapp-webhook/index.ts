@@ -1553,6 +1553,28 @@ async function answerFinancialQuestion(supabase: SupabaseClient, companyId: stri
   try {
   const lower = question.toLowerCase();
 
+  // Risk/Anomaly detection (check BEFORE generic invoice pattern)
+  if (/(risky|suspicious|risk alert|anomal|unusual)/.test(lower)) {
+    const { data: invoices } = await supabase.from("invoices").select("invoice_id").eq("company_id", companyId).in("status", ["Pending", "Overdue"]);
+    const invoiceIds = (invoices ?? []).map((row) => row.invoice_id);
+    if (!invoiceIds.length) return "No pending invoices to analyze for risk.";
+    const { data: analyses } = await supabase.from("invoice_analysis").select("invoice_id,anomaly_score,duplicate_score,vendor_risk_snapshot").in("invoice_id", invoiceIds).order("anomaly_score", { ascending: false }).limit(5);
+    const rows = analyses ?? [];
+    if (!rows.length) return "No analyzed risk alerts were found.";
+    return ["Highest-risk pending invoices:", ...rows.map((row) => `${row.invoice_id}: anomaly ${Number(row.anomaly_score ?? 0)}/100, duplicate ${Number(row.duplicate_score ?? 0)}%, vendor risk ${(row.vendor_risk_snapshot as Record<string, unknown> | null)?.computed_risk ?? "unknown"}`)].join(NL);
+  }
+
+  // Duplicate detection
+  if (/(duplicate|duplicates|same invoice|repeated invoice)/.test(lower)) {
+    const { data: invoices } = await supabase.from("invoices").select("invoice_id").eq("company_id", companyId);
+    const invoiceIds = (invoices ?? []).map((row) => row.invoice_id);
+    if (!invoiceIds.length) return "No invoices found to check for duplicates.";
+    const { data: analyses } = await supabase.from("invoice_analysis").select("invoice_id,duplicate_score,duplicate_evidence").in("invoice_id", invoiceIds).order("duplicate_score", { ascending: false }).limit(5);
+    const rows = (analyses ?? []).filter((row) => Number(row.duplicate_score ?? 0) > 50);
+    if (!rows.length) return "No duplicate invoices detected. All invoices appear to be unique.";
+    return ["Potential duplicate invoices:", ...rows.map((row) => `${row.invoice_id}: ${Number(row.duplicate_score).toFixed(0)}% similarity - ${(row.duplicate_evidence as Record<string, unknown> | null)?.best_match?.invoice_id ?? "N/A"}`)].join(NL);
+  }
+
   // Company overview
   if (/(overview|summary|company info|total spending|total spend|cash position|monthly spend|spend this month)/.test(lower)) {
     const overview = await getCompanyOverview(supabase, companyId);
