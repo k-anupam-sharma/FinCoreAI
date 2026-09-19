@@ -1550,10 +1550,11 @@ async function answerDatasetQuestion(supabase: SupabaseClient, companyId: string
 }
 
 async function answerFinancialQuestion(supabase: SupabaseClient, companyId: string, question: string): Promise<string> {
+  try {
   const lower = question.toLowerCase();
 
   // Company overview
-  if (/(overview|summary|company info|total spending|total spend|cash position)/.test(lower)) {
+  if (/(overview|summary|company info|total spending|total spend|cash position|monthly spend|spend this month)/.test(lower)) {
     const overview = await getCompanyOverview(supabase, companyId);
     return [
       `Company: ${(overview.company as Record<string, unknown>)?.name ?? "Unknown"}`,
@@ -1664,16 +1665,12 @@ async function answerFinancialQuestion(supabase: SupabaseClient, companyId: stri
     return ["FinCore datasets for your company:", ...counts.map((item) => `- ${item.table}: ${item.count === null ? "unavailable" : `${item.count} records`}`)].join(NL);
   }
 
-  // Default: use safe query executor with NVIDIA fallback
-  const safeAnswer = await answerDatasetQuestion(supabase, companyId, userId, question);
-  if (safeAnswer) return safeAnswer;
-  // Final fallback to NVIDIA API with full context
-  const fullAnswer = await callNvidiaText(
-    'You are FinCore AI, a financial intelligence assistant. Answer the user question using the company data available in the FinCore database. If you cannot answer, say so clearly.',
-    `User question: ${question}`,
-    800,
-  );
-  return fullAnswer || "I don't have enough data to answer that question. Try asking about invoices, vendors, payments, budgets, transactions, or decisions.";
+  // Default: return helpful menu
+  return ["I can answer questions about:", "- monthly spend and overview", "- top vendors", "- pending or risky invoices", "- budgets and affordability", "- cash-flow summaries", "- user and invoice counts", "", "Please rephrase your question or type menu."].join(NL);
+  } catch (error) {
+    console.error("whatsapp-webhook: answerFinancialQuestion failed", error instanceof Error ? error.message : error);
+    return "I encountered an error processing your question. Please try again or type menu for options.";
+  }
 }
 
 const WORKFLOW_ROLES = new Set(["admin", "finance_manager", "department_head"]);
