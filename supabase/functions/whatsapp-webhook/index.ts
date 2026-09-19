@@ -1540,7 +1540,7 @@ async function answerDatasetQuestion(supabase: SupabaseClient, companyId: string
   return null;
 }
 
-async function answerFinancialQuestion(supabase: SupabaseClient, companyId: string, question: string): Promise<string> {
+async function answerFinancialQuestion(supabase: SupabaseClient, companyId: string, question: string): Promise<string | null> {
   try {
   const lower = question.toLowerCase();
 
@@ -1725,11 +1725,11 @@ async function answerFinancialQuestion(supabase: SupabaseClient, companyId: stri
     return ["FinCore datasets for your company:", ...counts.map((item) => `- ${item.table}: ${item.count === null ? "unavailable" : `${item.count} records`}`)].join(NL);
   }
 
-  // Default: return helpful menu
-  return ["I can answer questions about:", "- monthly spend and overview", "- top vendors", "- pending or risky invoices", "- budgets and affordability", "- cash-flow summaries", "- user and invoice counts", "", "Please rephrase your question or type menu."].join(NL);
+  // Unsupported questions are passed to the guarded AI/query layers.
+  return null;
   } catch (error) {
     console.error("whatsapp-webhook: answerFinancialQuestion failed", error instanceof Error ? error.message : error);
-    return "I encountered an error processing your question. Please try again or type menu for options.";
+    return null;
   }
 }
 
@@ -2512,7 +2512,7 @@ Deno.serve(async (req) => {
               replyText = MENU_TEXT;
             } else {
               const qnaQuestion = intent?.question ?? content;
-              replyText = await answerDatasetQuestion(supabase, linkedUser.company_id, linkedAccount.user_id, qnaQuestion) ?? await answerFinancialQuestion(supabase, linkedUser.company_id, qnaQuestion);
+              replyText = await answerFinancialQuestion(supabase, linkedUser.company_id, qnaQuestion) ?? await answerDatasetQuestion(supabase, linkedUser.company_id, linkedAccount.user_id, qnaQuestion) ?? "I don't have enough data to answer that question.";
             }
           }
         }
