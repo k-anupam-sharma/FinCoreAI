@@ -288,6 +288,195 @@ const OCR_MODEL = "alibaba/qwen-3.7-plus";
 const CHAT_MODEL = "google/gemini-3.1-flash-lite-preview";
 const ALLOWED_INVOICE_TYPES = new Set(["application/pdf", "image/jpeg", "image/png"]);
 
+// ---- Safe Query Executor (Hybrid Layer 2) ----
+
+const APPROVED_TABLES: Record<string, { columns: string[]; has_company_id: boolean; aliases: string[] }> = {
+  companies: { columns: ['company_id', 'name', 'industry', 'country', 'plan_tier', 'created_at'], has_company_id: false, aliases: ['company', 'organization', 'business'] },
+  users: { columns: ['user_id', 'name', 'email', 'role', 'account_status', 'mfa_enabled', 'created_at'], has_company_id: true, aliases: ['user', 'employee', 'staff', 'account'] },
+  vendors: { columns: ['vendor_id', 'name', 'category', 'risk_profile', 'status', 'bank_name', 'bank_account_number', 'tax_id', 'onboarded_date'], has_company_id: true, aliases: ['vendor', 'supplier', 'contractor'] },
+  invoices: { columns: ['invoice_id', 'vendor_id', 'department', 'gl_account', 'subtotal', 'tax_amount', 'total_amount', 'currency', 'date', 'due_date', 'status', 'po_number', 'contract_id', 'submitted_by', 'submitted_at', 'source_channel', 'ocr_confidence', 'is_recurring', 'notes', 'file_storage_path'], has_company_id: true, aliases: ['invoice', 'bill', 'receipt'] },
+  payments: { columns: ['payment_id', 'invoice_id', 'amount', 'status', 'payment_method', 'bank_reference', 'payment_date'], has_company_id: true, aliases: ['payment', 'transaction', 'cash transaction', 'cash flow', 'cash movement', 'money movement'] },
+  budgets: { columns: ['budget_id', 'department', 'period', 'allocated', 'spent', 'remaining'], has_company_id: true, aliases: ['budget', 'allocation', 'budget line'] },
+  decisions: { columns: ['decision_id', 'invoice_id', 'recommendation', 'reasoning', 'confidence_score', 'decided_by', 'timestamp'], has_company_id: true, aliases: ['decision', 'approval', 'review', 'recommendation'] },
+  transactions: { columns: ['transaction_id', 'date', 'type', 'category', 'amount'], has_company_id: true, aliases: ['transaction', 'cash transaction', 'cash flow', 'cash movement', 'money movement'] },
+  auth_log: { columns: ['log_id', 'user_id', 'event_type', 'ip_address', 'device', 'success', 'timestamp'], has_company_id: true, aliases: ['auth log', 'login log', 'security log', 'authentication'] },
+  vendor_bank_changes: { columns: ['change_id', 'vendor_id', 'old_account_number', 'new_account_number', 'old_bank_name', 'new_bank_name', 'changed_at', 'changed_by'], has_company_id: true, aliases: ['bank change', 'vendor bank', 'account change'] },
+  gl_accounts: { columns: ['gl_code', 'category', 'description'], has_company_id: false, aliases: ['gl account', 'general ledger', 'account code'] },
+  demo_anomaly_answer_key: { columns: ['id', 'source_table', 'related_id', 'anomaly_type', 'description'], has_company_id: false, aliases: ['anomaly', 'anomaly key', 'label'] },
+  decision_rules_config: { columns: ['rule_key', 'threshold_value', 'description'], has_company_id: true, aliases: ['rule', 'threshold', 'config'] },
+  invoice_analysis: { columns: ['invoice_id', 'extracted_fields', 'validation_result', 'duplicate_score', 'duplicate_evidence', 'vendor_risk_snapshot', 'budget_impact', 'anomaly_score', 'anomaly_reasons', 'created_at'], has_company_id: false, aliases: ['analysis', 'invoice analysis', 'extraction'] },
+  invoice_items: { columns: ['invoice_id', 'line_no', 'description', 'quantity', 'unit_price', 'amount', 'gl_account'], has_company_id: false, aliases: ['line item', 'invoice line', 'item'] },
+  risk_alerts: { columns: ['id', 'alert_type', 'severity', 'related_invoice_id', 'related_vendor_id', 'message', 'status', 'created_at', 'resolved_at', 'resolved_by'], has_company_id: true, aliases: ['alert', 'risk', 'risk alert', 'warning'] },
+  forecast_records: { columns: ['id', 'generated_at', 'horizon_days', 'projected_inflow', 'projected_outflow', 'projected_net', 'projected_cash_position', 'top_contributors', 'disclaimer'], has_company_id: true, aliases: ['forecast', 'projection', 'cash flow forecast'] },
+};
+
+const APPROVED_JOINS: Record<string, { from_table: string; from_column: string; to_table: string; to_column: string; join_type: string }> = {
+  invoices_vendors: { from_table: 'invoices', from_column: 'vendor_id', to_table: 'vendors', to_column: 'vendor_id', join_type: 'LEFT' },
+  invoices_users: { from_table: 'invoices', from_column: 'submitted_by', to_table: 'users', to_column: 'user_id', join_type: 'LEFT' },
+  invoices_gl_accounts: { from_table: 'invoices', from_column: 'gl_account', to_table: 'gl_accounts', to_column: 'gl_code', join_type: 'LEFT' },
+  invoices_analysis: { from_table: 'invoices', from_column: 'invoice_id', to_table: 'invoice_analysis', to_column: 'invoice_id', join_type: 'LEFT' },
+  invoices_items: { from_table: 'invoices', from_column: 'invoice_id', to_table: 'invoice_items', to_column: 'invoice_id', join_type: 'LEFT' },
+  invoices_payments: { from_table: 'invoices', from_column: 'invoice_id', to_table: 'payments', to_column: 'invoice_id', join_type: 'LEFT' },
+  invoices_decisions: { from_table: 'invoices', from_column: 'invoice_id', to_table: 'decisions', to_column: 'invoice_id', join_type: 'LEFT' },
+  invoices_risk_alerts: { from_table: 'invoices', from_column: 'invoice_id', to_table: 'risk_alerts', to_column: 'related_invoice_id', join_type: 'LEFT' },
+  vendors_bank_changes: { from_table: 'vendors', from_column: 'vendor_id', to_table: 'vendor_bank_changes', to_column: 'vendor_id', join_type: 'LEFT' },
+  users_auth_log: { from_table: 'users', from_column: 'user_id', to_table: 'auth_log', to_column: 'user_id', join_type: 'LEFT' },
+};
+
+const TABLES_WITH_COMPANY_ID = ['users', 'vendors', 'invoices', 'payments', 'budgets', 'decisions', 'transactions', 'auth_log', 'vendor_bank_changes', 'decision_rules_config', 'risk_alerts', 'forecast_records'];
+
+const TABLES_VIA_PARENT: Record<string, { parent: string; join_column: string }> = {
+  invoice_analysis: { parent: 'invoices', join_column: 'invoice_id' },
+  invoice_items: { parent: 'invoices', join_column: 'invoice_id' },
+};
+
+interface SafeQuery {
+  in_scope: boolean;
+  table: string;
+  columns: string[];
+  filters: Array<{ column: string; operator: string; value: string | number }>;
+  joins?: Array<{ to_table: string }>;
+  aggregations?: Array<{ function: string; column: string; alias: string }>;
+  group_by?: string;
+  order_by?: string;
+  order_direction?: 'asc' | 'desc';
+  limit?: number;
+  original_question?: string;
+}
+
+function normalizeSafeQuery(value: Record<string, unknown>): SafeQuery | null {
+  const table = typeof value.table === 'string' && APPROVED_TABLES[value.table] ? value.table : null;
+  if (!table) return null;
+  const config = APPROVED_TABLES[table];
+  const columns = Array.isArray(value.columns)
+    ? (value.columns as string[]).filter((col) => typeof col === 'string' && config.columns.includes(col)).slice(0, 20)
+    : [];
+  if (!columns.length) return null;
+  const rawFilters = Array.isArray(value.filters) ? value.filters : [];
+  const filters = rawFilters.map((entry) => {
+    const filter = entry && typeof entry === 'object' ? entry as Record<string, unknown> : {};
+    const column = typeof filter.column === 'string' && config.columns.includes(filter.column) ? filter.column : null;
+    const operator = filter.operator;
+    const filterValue = typeof filter.value === 'string' || typeof filter.value === 'number' ? filter.value : null;
+    return column && column !== 'company_id' && (operator === 'eq' || operator === 'ilike' || operator === 'gte' || operator === 'lte') && filterValue !== null
+      ? { column, operator, value: filterValue }
+      : null;
+  }).filter((f): f is { column: string; operator: string; value: string | number } => f !== null).slice(0, 5);
+  const rawJoins = Array.isArray(value.joins) ? value.joins : [];
+  const joins = rawJoins.map((entry) => {
+    const join = entry && typeof entry === 'object' ? entry as Record<string, unknown> : {};
+    const toTable = typeof join.to_table === 'string' ? join.to_table : null;
+    const joinKey = `${table}_${toTable}`;
+    return toTable && APPROVED_JOINS[joinKey] ? { to_table: toTable } : null;
+  }).filter((j): j is { to_table: string } => j !== null).slice(0, 3);
+  const rawLimit = Number(value.limit);
+  return {
+    in_scope: value.in_scope === true,
+    table,
+    columns,
+    filters,
+    joins: joins.length ? joins : undefined,
+    aggregations: Array.isArray(value.aggregations) ? (value.aggregations as Array<{ function: string; column: string; alias: string }>).filter((agg) => agg && typeof agg.function === 'string' && typeof agg.column === 'string').slice(0, 5) : undefined,
+    group_by: typeof value.group_by === 'string' && config.columns.includes(value.group_by) ? value.group_by : undefined,
+    order_by: typeof value.order_by === 'string' && config.columns.includes(value.order_by) ? value.order_by : undefined,
+    order_direction: value.order_direction === 'asc' ? 'asc' : 'desc',
+    limit: Number.isFinite(rawLimit) ? Math.min(100, Math.max(1, Math.floor(rawLimit))) : 50,
+    original_question: typeof value.original_question === 'string' ? value.original_question : undefined,
+  };
+}
+
+async function classifySafeQuery(question: string): Promise<SafeQuery | null> {
+  const content = await callGeminiText(
+    `You are a FinCore query planner. Return JSON only with: in_scope (boolean), table (one approved table), columns (array of approved columns), filters (array with column/operator/value), joins (array with to_table), aggregations (optional), group_by (optional), order_by (optional), order_direction (asc/desc), limit (1-100), original_question (string).
+
+Approved tables: ${Object.keys(APPROVED_TABLES).join(', ')}.
+
+Rules:
+- NEVER include company_id in filters (backend enforces it)
+- NEVER request mutations
+- If question cannot be answered, set in_scope: false`,
+    question,
+    600,
+  );
+  const parsed = content ? parseJsonObject(content) : null;
+  return parsed ? normalizeSafeQuery(parsed) : null;
+}
+
+async function executeSafeQuery(query: SafeQuery, companyId: string, userId: string): Promise<{ data: unknown[] | null; error: string | null }> {
+  try {
+    const config = APPROVED_TABLES[query.table];
+    if (!config) throw new Error(`Table '${query.table}' not approved`);
+    const invalidCols = query.columns.filter((col) => !config.columns.includes(col));
+    if (invalidCols.length) throw new Error(`Columns not approved: ${invalidCols.join(', ')}`);
+    let supabaseQuery = supabase.from(query.table).select(query.columns.join(','));
+    if (TABLES_WITH_COMPANY_ID.includes(query.table)) {
+      supabaseQuery = supabaseQuery.eq('company_id', companyId);
+    } else if (TABLES_VIA_PARENT[query.table]) {
+      const parent = TABLES_VIA_PARENT[query.table];
+      const { data: parentRows, error: parentError } = await supabase.from(parent).select('invoice_id').eq('company_id', companyId).limit(500);
+      if (parentError) throw parentError;
+      const parentIds = (parentRows ?? []).map((row) => row.invoice_id);
+      if (!parentIds.length) return { data: [], error: null };
+      supabaseQuery = supabaseQuery.in(parent.join_column, parentIds);
+    }
+    for (const filter of query.filters) {
+      if (filter.column === 'company_id') throw new Error('Cannot filter by company_id');
+      if (filter.operator === 'eq') supabaseQuery = supabaseQuery.eq(filter.column, filter.value);
+      if (filter.operator === 'ilike') supabaseQuery = supabaseQuery.ilike(filter.column, `%${String(filter.value).replace(/[%_]/g, '')}%`);
+      if (filter.operator === 'gte') supabaseQuery = supabaseQuery.gte(filter.column, filter.value);
+      if (filter.operator === 'lte') supabaseQuery = supabaseQuery.lte(filter.column, filter.value);
+    }
+    if (query.joins) {
+      for (const join of query.joins) {
+        const joinKey = `${query.table}_${join.to_table}`;
+        const joinDef = APPROVED_JOINS[joinKey];
+        if (!joinDef) throw new Error(`JOIN not approved: ${joinKey}`);
+        supabaseQuery = supabaseQuery.select(`${query.columns.join(',')}, ${join.to_table}!${joinKey}(${APPROVED_TABLES[join.to_table].columns.slice(0, 10).join(',')})`);
+      }
+    }
+    if (query.group_by) supabaseQuery = supabaseQuery.order(query.group_by, { ascending: query.order_direction !== 'desc' });
+    else if (query.order_by) supabaseQuery = supabaseQuery.order(query.order_by, { ascending: query.order_direction !== 'desc' });
+    supabaseQuery = supabaseQuery.limit(Math.min(query.limit || 50, 100));
+    const { data, error } = await Promise.race([
+      supabaseQuery,
+      new Promise<never>((_, reject) => setTimeout(() => reject(new Error('Query timeout')), 10000)),
+    ]);
+    if (error) throw error;
+    await supabase.from('query_logs').insert({
+      user_id: userId,
+      company_id: companyId,
+      user_question: query.original_question ?? '',
+      query_type: 'safe_query',
+      tables_accessed: [query.table, ...(query.joins?.map((j) => j.to_table) || [])],
+      execution_status: 'success',
+      rows_returned: data?.length ?? 0,
+    });
+    return { data: data ?? [], error: null };
+  } catch (error) {
+    const errorMsg = error instanceof Error ? error.message : 'Unknown error';
+    await supabase.from('query_logs').insert({
+      user_id: userId,
+      company_id: companyId,
+      user_question: query.original_question ?? '',
+      query_type: 'safe_query',
+      tables_accessed: [query.table],
+      execution_status: 'failed',
+      rows_returned: 0,
+      error_message: errorMsg,
+    });
+    return { data: null, error: errorMsg };
+  }
+}
+
+async function explainQueryResult(question: string, data: unknown[], query: SafeQuery): Promise<string> {
+  const facts = JSON.stringify({ table: query.table, row_count: data.length, rows: data.slice(0, 20) }, null, 2).slice(0, 18000);
+  return callGeminiText(
+    'Answer the user question using only the supplied database facts. Be concise. If data is empty, say so clearly.',
+    `Question: ${question}${NL}${NL}Database result:${NL}${facts}`,
+    600,
+  ) || `Query returned ${data.length} row(s) from ${query.table}.`;
+}
+
 function invoiceExtension(mimeType: string, filename?: string): string {
   const filenameExtension = filename?.split(".").pop()?.toLowerCase().replace(/[^a-z0-9]/g, "");
   if (filenameExtension === "pdf" || filenameExtension === "jpg" || filenameExtension === "jpeg" || filenameExtension === "png") {
@@ -1154,37 +1343,23 @@ async function answerFullCompanyDatasetQuestion(supabase: SupabaseClient, compan
   );
 }
 
-async function answerDatasetQuestion(supabase: SupabaseClient, companyId: string, question: string): Promise<string | null> {
-  // Demo mode gives Gemini the complete approved company snapshot so it can answer
-  // cross-dataset questions instead of relying only on keyword branches.
+async function answerDatasetQuestion(supabase: SupabaseClient, companyId: string, userId: string, question: string): Promise<string | null> {
+  // Layer 1: Full snapshot for common questions
   const fullAnswer = await answerFullCompanyDatasetQuestion(supabase, companyId, question);
-  if (fullAnswer) return fullAnswer;
-  const plan = await classifyDatasetPlan(question);
-  if (!plan || !plan.in_scope || !plan.table || !plan.columns.length) return null;
-  const config = DATASET_ALLOWLIST[plan.table];
-  let query = supabase.from(plan.table).select(plan.columns.join(","));
-  if (config.companyScoped) query = query.eq("company_id", companyId);
-  if (plan.table === "invoice_analysis") {
-    const { data: scopedInvoices, error: scopedInvoiceError } = await supabase.from("invoices").select("invoice_id").eq("company_id", companyId).limit(500);
-    if (scopedInvoiceError) throw scopedInvoiceError;
-    const ids = (scopedInvoices ?? []).map((row) => row.invoice_id);
-    if (!ids.length) return "No data was found in your company dataset.";
-    query = query.in("invoice_id", ids);
+  if (fullAnswer && !fullAnswer.includes("I don't have enough data")) return fullAnswer;
+  // Layer 2: Safe query executor for complex/custom questions
+  const queryPlan = await classifySafeQuery(question);
+  if (queryPlan && queryPlan.in_scope) {
+    const result = await executeSafeQuery(queryPlan, companyId, userId);
+    if (result.data && result.data.length > 0) {
+      return await explainQueryResult(question, result.data, queryPlan);
+    }
+    if (result.data && result.data.length === 0) {
+      return "No matching records were found in your company dataset.";
+    }
   }
-  for (const filter of plan.filters) {
-    if (filter.operator === "eq") query = query.eq(filter.column, filter.value);
-    if (filter.operator === "ilike") query = query.ilike(filter.column, `%${String(filter.value).replace(/[%_]/g, "")}%`);
-    if (filter.operator === "gte") query = query.gte(filter.column, filter.value);
-    if (filter.operator === "lte") query = query.lte(filter.column, filter.value);
-  }
-  if (plan.sort_column) query = query.order(plan.sort_column, { ascending: plan.sort_direction === "asc" });
-  const { data, error } = await query.limit(plan.limit);
-  if (error) throw error;
-  const rows = data ?? [];
-  if (!rows.length) return "No matching records were found in your company dataset.";
-  const aggregateValue = plan.aggregate === "count" ? rows.length : plan.aggregate === "sum" && plan.aggregate_column ? rows.reduce((sum, row) => sum + Number(row[plan.aggregate_column!] ?? 0), 0) : null;
-  const facts = JSON.stringify({ table: plan.table, row_count: rows.length, aggregate: aggregateValue, rows }, null, 2).slice(0, 18000);
-  return explainFinancialFacts(question, `The following are the only authorized company-scoped database facts:\n${facts}`);
+  // Layer 3: Clear fallback
+  return null;
 }
 
 async function answerFinancialQuestion(supabase: SupabaseClient, companyId: string, question: string): Promise<string> {
@@ -2027,7 +2202,7 @@ Deno.serve(async (req) => {
               replyText = MENU_TEXT;
             } else {
               const qnaQuestion = intent?.question ?? content;
-              replyText = await answerDatasetQuestion(supabase, linkedUser.company_id, qnaQuestion) ?? await answerFinancialQuestion(supabase, linkedUser.company_id, qnaQuestion);
+              replyText = await answerDatasetQuestion(supabase, linkedUser.company_id, linkedAccount.user_id, qnaQuestion) ?? await answerFinancialQuestion(supabase, linkedUser.company_id, qnaQuestion);
             }
           }
         }

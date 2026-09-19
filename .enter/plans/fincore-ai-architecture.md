@@ -1090,6 +1090,35 @@ Qwen 3.7 Plus is currently used for OCR and also for Q&A/classification. This ch
 - [x] Update docs to describe the model split and protected access boundary.
 - [x] Deploy and verify both OCR and chatbot paths separately through deployment, lint, TypeScript, and regression tests.
 
+---
+
+## Hybrid Query System (Option C)
+
+### Context
+
+The chatbot needed to answer broader questions about the FinCore datasets while maintaining strict security. This implements a three-layer hybrid system: full snapshot for common questions, safe query executor for complex questions, and clear fallback.
+
+### Implementation
+
+- [x] Created `query_logs` table for audit trail
+- [x] Defined `APPROVED_TABLES` with 17 tables and column allowlists
+- [x] Defined `APPROVED_JOINS` with 10 validated relationships
+- [x] Implemented `classifySafeQuery()` - AI query planner using Gemini
+- [x] Implemented `executeSafeQuery()` - validated executor with company_id enforcement
+- [x] Implemented `explainQueryResult()` - fact-grounded explanation
+- [x] Updated routing: snapshot → safe query → clear fallback
+- [x] Deployed and verified with lint/TypeScript
+
+### Security Guarantees
+
+- SELECT-only operations
+- Company_id enforced at backend level (never trust AI)
+- Max 100 rows per query
+- 10-second query timeout
+- All queries logged with user_id, company_id, tables accessed
+- No raw SQL execution
+- No write operations permitted
+
 ### Verification checklist
 
 - [ ] Invoice image still uses Qwen and produces structured extraction.

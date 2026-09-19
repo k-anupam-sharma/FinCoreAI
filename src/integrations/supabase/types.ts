@@ -4125,6 +4125,45 @@ export type Database = {
           },
         ]
       }
+      query_logs: {
+        Row: {
+          company_id: string
+          error_message: string | null
+          execution_status: string
+          query_id: string
+          query_type: string
+          rows_returned: number | null
+          tables_accessed: string[]
+          timestamp: string
+          user_id: string
+          user_question: string
+        }
+        Insert: {
+          company_id: string
+          error_message?: string | null
+          execution_status: string
+          query_id?: string
+          query_type: string
+          rows_returned?: number | null
+          tables_accessed: string[]
+          timestamp?: string
+          user_id: string
+          user_question: string
+        }
+        Update: {
+          company_id?: string
+          error_message?: string | null
+          execution_status?: string
+          query_id?: string
+          query_type?: string
+          rows_returned?: number | null
+          tables_accessed?: string[]
+          timestamp?: string
+          user_id?: string
+          user_question?: string
+        }
+        Relationships: []
+      }
       risk_alerts: {
         Row: {
           alert_type: string
