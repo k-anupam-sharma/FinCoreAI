@@ -1,0 +1,6 @@
+company_id,name,industry,country,plan_tier,created_at
+COMP-01,NimbusWorks Pvt Ltd,Software/SaaS,India,Enterprise,2025-01-01 00:00:00
+COMP-02,Vertex Manufacturing Ltd,Manufacturing,India,Growth,2025-01-01 00:00:00
+COMP-03,BluePeak Retail Group,Retail,India,Growth,2025-01-01 00:00:00
+COMP-04,Meridian Logistics Pvt Ltd,Logistics,India,Enterprise,2025-01-01 00:00:00
+COMP-05,Solstice Health Systems,Healthcare,India,Growth,2025-01-01 00:00:00

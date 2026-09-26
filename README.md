@@ -1,151 +1,92 @@
-# Welcome to your Enter project
+# FinCore WhatsApp AI Bot
 
-[![Built with enter.pro](https://img.shields.io/badge/Build%20with-Enter.pro-FC5776?style=for-the-badge&labelColor=1F1F1F)](https://enter.pro)
+FinCore WhatsApp AI Bot is an intelligent conversational agent built on Supabase Edge Functions and the Meta WhatsApp Cloud API. It interacts with users, handles secure authentication via email OTPs, processes invoices, queries transactions, and performs context-aware financial tasks using AI.
 
-*Automatically synced with your [enter.pro](https://enter.pro) workspace* 
+## Architecture
 
----
-
-## Overview
-
-This repository is automatically linked to your app on [enter.pro](https://enter.pro).  
-Every change you make in Enter will be reflected here — and any updates you push to this repo will sync back seamlessly.  
-
-Enter.pro helps you **build, edit, and deploy full-stack web apps by prompting**.  
-Just describe what you want — Enter turns ideas into production-ready code.
-
----
-
-## Project URLs
-
-**Live app:** https://<project-id>-latest.preview.enter.pro  
-**Edit & build in Enter:** https://enter.pro/project/<project-id>
-
-
----
-
-## Continue building
-
-Keep developing your app directly in [Enter.pro](https://enter.pro/project/<project-id>).  
-Prompt new features, refine the UI, or connect integrations — all changes are versioned and synced automatically to GitHub.
-
----
-
-## Local development
-
-Prefer to work locally? You can clone this repo and start developing right away:
-
-```bash
-# Step 1: Clone your project repository
-git clone <YOUR_GIT_URL>
-
-# Step 2: Navigate into the project folder
-cd <YOUR_PROJECT_NAME>
-
-# Step 3: Install all dependencies
-pnpm install
-
-# Step 4: Start the local development server
-pnpm dev
+```mermaid
+graph TD
+    User([User WhatsApp]) -->|Webhook Event| MetaAPI[Meta WhatsApp API]
+    MetaAPI -->|POST /whatsapp-webhook| EdgeFunction[Supabase Edge Function]
+    EdgeFunction --> SupabaseDB[(Supabase PostgreSQL)]
+    EdgeFunction --> Resend[Resend Email API]
+    EdgeFunction --> AI[AI Provider]
+    
+    subgraph Edge Function Logic
+        Auth[User Onboarding & OTP]
+        OCR[Invoice Processing & OCR]
+        Chat[Context-Aware Conversation]
+    end
+    
+    EdgeFunction -.-> Auth
+    EdgeFunction -.-> OCR
+    EdgeFunction -.-> Chat
 ```
 
-Push your commits — Enter.pro will automatically detect and sync your latest changes.
+## User Onboarding Flow
 
----
+```mermaid
+sequenceDiagram
+    participant User
+    participant WhatsApp
+    participant Webhook
+    participant DB as Supabase
+    participant Resend
 
-## i18n
-
-This template ships a minimal browser-side i18n baseline built on:
-
-- `i18next`
-- `react-i18next`
-- `i18next-http-backend`
-- `i18next-browser-languagedetector`
-
-### Source-of-truth files
-
-The template only owns three pieces of i18n data:
-
-- `i18n.config.json` — language manifest (`fallbackLng`, `languages[].{code,label,detect,dir}`)
-- `public/locales/{code}.json` — flat dotted-key translations, one file per language
-- `src/i18n/config.ts` + `src/i18n/util.ts` — runtime entry and pure helpers
-- `src/components/language-switcher.tsx` — neutral-themed UI sample
-
-### Runtime behavior
-
-- reads the manifest from `i18n.config.json`
-- loads translations from `public/locales/{code}.json` via `i18next-http-backend`
-- detects language from cookie, browser, then html tag; caches in the `i18next` cookie
-- normalizes unsupported languages to `fallbackLng` (no invalid values stored in cookies)
-- syncs `<html lang>` and `<html dir>` on init and on `languageChanged`
-- treats keys as flat strings: both `keySeparator` and `nsSeparator` are disabled
-
-### Using translations in components
-
-Import directly from `react-i18next`. No project-specific hook or cast is needed.
-
-```tsx
-import { useTranslation } from "react-i18next";
-
-const Title = () => {
-  const { t } = useTranslation();
-  return <h1>{t("home.hero.title")}</h1>;
-};
+    User->>WhatsApp: Sends "Hi"
+    WhatsApp->>Webhook: Webhook Event
+    Webhook->>DB: Check if user exists (by phone)
+    alt User is missing phone
+        Webhook->>DB: Start onboarding_email state
+        Webhook->>WhatsApp: "Welcome! Enter your email to begin."
+        WhatsApp-->>User: Message Received
+        User->>WhatsApp: "user@fincore.com"
+        WhatsApp->>Webhook: Email payload
+        Webhook->>DB: Check if email exists
+        Webhook->>Resend: Send 6-digit OTP
+        Webhook->>DB: Save OTP Hash & move to onboarding_otp
+        Webhook->>WhatsApp: "Enter your 6-digit OTP"
+        User->>WhatsApp: "123456"
+        WhatsApp->>Webhook: OTP received
+        Webhook->>DB: Verify OTP hash
+        Webhook->>DB: Update user phone & link account
+        Webhook->>WhatsApp: "Account verified! How can I help?"
+    else User exists
+        Webhook->>AI: Send conversation history
+        AI-->>Webhook: AI Response
+        Webhook->>WhatsApp: AI Response Message
+    end
 ```
 
-For language switching, the `i18n` instance also comes from `useTranslation()`:
+## Setup & Deployment
 
-```tsx
-const { i18n } = useTranslation();
-void i18n.changeLanguage("zh-CN");
-```
+1. Set up a Supabase Project.
+2. Provide the following environment variables in your `.env` file:
+   - `WHATSAPP_VERIFY_TOKEN`
+   - `WHATSAPP_ACCESS_TOKEN`
+   - `WHATSAPP_PHONE_NUMBER_ID`
+   - `WHATSAPP_APP_SECRET`
+   - `RESEND_API_KEY`
+   - `ENTER_AI_API_KEY`
+3. Deploy the Edge Function:
+   ```bash
+   npx supabase secrets set --env-file .env
+   npx supabase functions deploy whatsapp-webhook
+   ```
+4. Push database migrations and seed data:
+   ```bash
+   npx supabase db push
+   ```
+5. Configure the Meta App Dashboard Webhook to point to the Supabase Edge Function URL.
 
-`languageOptions`, `normalizeLanguage`, `getLanguageDirection`, and `fallbackLng` can be imported from `@/i18n/config` (re-exports from `util.ts`).
+## Database Seeding & Mock Data Cleanup
 
-### Adding a language
+The raw mock datasets provided for this project had several structural inconsistencies (e.g., mismatched foreign keys with `-D` tags, empty numeric and date fields, missing company IDs, and extra columns). 
 
-1. Add an entry under `languages` in `i18n.config.json` with `code`, `label`, `detect`, `dir`.
-2. Create `public/locales/{code}.json` with the same key set as `public/locales/{fallbackLng}.json`.
-3. Translate values, preserving any `{{variables}}` and `<tag>...</tag>` structures.
+Robust automated Node.js cleanup scripts (`scripts/data-cleanup/`) were written and executed to sanitize this data perfectly:
+- Stripped unnecessary trailing strings and `-D` suffixes specifically for foreign keys to match the `companies` table.
+- Filled in completely blank numeric and date fields with safe database defaults (e.g., `0.0` or `2024-01-01`) to prevent PostgreSQL syntax errors.
+- Preemptively nullified or corrected broken foreign key references (such as mock users that do not exist in the `users` table).
+- Automatically mapped all missing `company_id` values to `COMP-01`.
 
-### Adding a translation key
-
-1. Add the key to `public/locales/{fallbackLng}.json` first.
-2. Add the same key to every other locale file with its translated value.
-3. Use it via `t("group.key")` in components.
-
-### Backend handoff (temporary in-repo files)
-
-The following files are **temporary copies kept in the repo only until backend integration is complete**. The backend will eventually own validation, statistics, completion-rate dashboards, scan-for-new-strings, and auto-translate. After that integration lands, these files (and the corresponding `package.json` scripts) will be removed:
-
-- `scripts/check-i18n.mjs`, `scripts/scan-i18n.mjs`, `scripts/i18n-utils.mjs`, `scripts/i18n-source-usage.mjs`
-- `i18n.scan.json`
-- `reports/i18n/`
-- `docs/i18n-agent-spec.md`, `docs/i18n-contract.md`
-- `package.json` scripts: `i18n:check`, `i18n:scan`, and the `check` aggregate
-
-Until removed, you can still run `pnpm i18n:check` and `pnpm i18n:scan` locally; the canonical computation is the backend's responsibility.
-
----
-
-## Tech stack
-
-This project uses:
-
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
-
----
-
-## Deployment
-
-To deploy, open your Enter.pro project and click "Publish"
-
-Your app will automatically build and go live at your production URL.
-
----
-
-✨ Keep prompting, keep building — Enter.pro handles the rest.
+The fully sanitized, database-ready CSV files are located in the `docs/clean-datasets` folder. These files can be safely imported directly into their respective tables via the Supabase Dashboard Table Editor with zero constraint errors.
