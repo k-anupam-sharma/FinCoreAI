@@ -1,0 +1,431 @@
+decision_id,company_id,invoice_id,recommendation,reasoning,confidence_score,decided_by,timestamp
+DEC-00001-D1,COMP-01,INV-00323-D1,Flag for Review,Amount deviates 79% from vendor's historical average invoice value.,0.75,,2026-04-17 02:24:00
+DEC-00002-D1,COMP-04,INV-00302-D1,Escalate,Unusual spend pattern detected across multiple invoices from this vendor this month.,0.85,,2025-10-21 10:00:00
+DEC-00003-D1,COMP-01,INV-00284-D1,Flag for Review,Vendor risk profile is Medium; manual verification recommended before payment.,0.76,,2025-09-11 03:38:00
+DEC-00004-D1,COMP-03,INV-00182-D1,Approve,Recurring vendor with consistent billing pattern; no anomalies detected.,0.71,,2026-01-07 05:55:00
+DEC-00005-D1,COMP-04,INV-00325-D1,Reject,Invoice amount exceeds remaining Engineering budget allocation.,0.72,,2025-10-02 09:12:00
+DEC-00006-D1,COMP-02,INV-00229-D1,Approve,Amount consistent with historical spend for R&D; auto-approved.,0.76,,2025-03-05 01:24:00
+DEC-00007-D1,COMP-02,INV-00039-D1,Flag for Review,Invoice date falls outside normal billing cycle for this vendor.,0.56,,2025-06-18 03:01:00
+DEC-00008-D1,COMP-02,INV-00191-D1,Escalate,Unusual spend pattern detected across multiple invoices from this vendor this month.,0.68,,2026-05-26 04:04:00
+DEC-00009-D1,COMP-05,INV-00234-D1,Hold - Duplicate Suspected,Line items closely match an invoice processed within the last 14 days.,0.73,,2026-05-29 03:09:00
+DEC-00010-D1,COMP-03,INV-00240-D1,Escalate,Unusual spend pattern detected across multiple invoices from this vendor this month.,0.8,,2025-12-03 13:51:00
+DEC-00011-D1,COMP-01,INV-00054-D1,Approve,Invoice matches purchase order and vendor risk profile is Low; amount within department budget.,0.8,,2025-04-24 22:10:00
+DEC-00012-D1,COMP-03,INV-00057-D1,Flag for Review,Vendor risk profile is High; manual verification recommended before payment.,0.77,,2025-08-13 01:55:00
+DEC-00013-D1,COMP-02,INV-00004-D1,Flag for Review,Vendor risk profile is Medium; manual verification recommended before payment.,0.62,,2025-02-13 21:55:00
+DEC-00014-D1,COMP-01,INV-00055-D1,Approve,Amount consistent with historical spend for Sales; auto-approved.,0.79,,2026-01-03 00:09:00
+DEC-00015-D1,COMP-02,INV-00241-D1,Reject,Invoice amount exceeds remaining Finance budget allocation.,0.91,,2025-10-17 20:23:00
+DEC-00016-D1,COMP-05,INV-00018-D1,Escalate,Unusual spend pattern detected across multiple invoices from this vendor this month.,0.85,,2025-12-31 00:21:00
+DEC-00017-D1,COMP-04,INV-00131-D1,Approve,Invoice matches purchase order and vendor risk profile is Medium; amount within department budget.,0.66,,2025-04-18 19:37:00
+DEC-00018-D1,COMP-04,INV-00313-D1,Escalate,Unusual spend pattern detected across multiple invoices from this vendor this month.,0.91,,2025-12-25 09:20:00
+DEC-00019-D1,COMP-02,INV-00103-D1,Reject,Duplicate invoice number detected for the same vendor and amount.,0.79,,2025-10-04 14:21:00
+DEC-00020-D1,COMP-05,INV-00073-D1,Reject,Vendor flagged as Low risk with prior fraud indicators.,0.72,,2026-04-04 15:41:00
+DEC-00021-D1,COMP-01,INV-00294-D1,Flag for Review,Vendor risk profile is Medium; manual verification recommended before payment.,0.76,,2025-08-01 03:31:00
+DEC-00022-D1,COMP-02,INV-00011-D1,Approve,Recurring vendor with consistent billing pattern; no anomalies detected.,0.87,,2026-02-28 19:50:00
+DEC-00023-D1,COMP-01,INV-00052-D1,Approve,Recurring vendor with consistent billing pattern; no anomalies detected.,0.86,,2025-03-21 11:50:00
+DEC-00024-D1,COMP-05,INV-00094-D1,Approve,Amount consistent with historical spend for Finance; auto-approved.,0.67,,2026-02-27 05:30:00
+DEC-00025-D1,COMP-04,INV-00038-D1,Approve,Recurring vendor with consistent billing pattern; no anomalies detected.,0.75,,2025-05-13 12:46:00
+DEC-00026-D1,COMP-01,INV-00153-D1,Approve,Invoice matches purchase order and vendor risk profile is Medium; amount within department budget.,0.66,,2025-04-26 11:48:00
+DEC-00027-D1,COMP-02,INV-00226-D1,Flag for Review,Invoice date falls outside normal billing cycle for this vendor.,0.9,,2025-09-20 22:30:00
+DEC-00028-D1,COMP-04,INV-00101-D1,Flag for Review,Invoice date falls outside normal billing cycle for this vendor.,0.78,,2026-03-23 23:32:00
+DEC-00029-D1,COMP-02,INV-00164-D1,Hold - Duplicate Suspected,Same amount and due date as an existing pending invoice from this vendor.,0.75,,2026-02-05 09:28:00
+DEC-00030-D1,COMP-05,INV-00257-D1,Escalate,Amount exceeds auto-approval threshold and requires finance manager sign-off.,0.83,,2026-04-20 14:22:00
+DEC-00031-D1,COMP-02,INV-00192-D1,Approve,Recurring vendor with consistent billing pattern; no anomalies detected.,0.74,,2025-04-28 06:20:00
+DEC-00032-D1,COMP-03,INV-00280-D1,Reject,Duplicate invoice number detected for the same vendor and amount.,0.82,,2025-10-22 01:07:00
+DEC-00033-D1,COMP-05,INV-00243-D1,Flag for Review,Vendor risk profile is Low; manual verification recommended before payment.,0.88,,2025-06-26 07:43:00
+DEC-00034-D1,COMP-05,INV-00275-D1,Flag for Review,Invoice date falls outside normal billing cycle for this vendor.,0.85,,2025-05-15 12:35:00
+DEC-00035-D1,COMP-01,INV-00293-D1,Escalate,Amount exceeds auto-approval threshold and requires finance manager sign-off.,0.84,,2025-06-01 00:25:00
+DEC-00036-D1,COMP-03,INV-00163-D1,Approve,Recurring vendor with consistent billing pattern; no anomalies detected.,0.59,,2026-01-28 17:20:00
+DEC-00037-D1,COMP-05,INV-00310-D1,Escalate,Unusual spend pattern detected across multiple invoices from this vendor this month.,0.78,,2025-10-22 17:31:00
+DEC-00038-D1,COMP-04,INV-00295-D1,Hold - Duplicate Suspected,Same amount and due date as an existing pending invoice from this vendor.,0.82,,2024-09-25 04:41:00
+DEC-00039-D1,COMP-05,INV-00071-D1,Reject,Duplicate invoice number detected for the same vendor and amount.,0.85,,2026-01-31 00:15:00
+DEC-00040-D1,COMP-03,INV-00127-D1,Approve,Invoice matches purchase order and vendor risk profile is High; amount within department budget.,0.6,,2026-06-11 21:34:00
+DEC-00041-D1,COMP-04,INV-00034-D1,Approve,Invoice matches purchase order and vendor risk profile is Medium; amount within department budget.,0.88,,2025-09-24 09:19:00
+DEC-00042-D1,COMP-02,INV-00184-D1,Approve,Recurring vendor with consistent billing pattern; no anomalies detected.,0.89,,2025-12-02 06:18:00
+DEC-00043-D1,COMP-02,INV-00006-D1,Approve,Invoice matches purchase order and vendor risk profile is Medium; amount within department budget.,0.65,,2026-04-06 15:29:00
+DEC-00044-D1,COMP-05,INV-00113-D1,Approve,Recurring vendor with consistent billing pattern; no anomalies detected.,0.88,,2025-12-04 11:31:00
+DEC-00045-D1,COMP-02,INV-00059-D1,Approve,Amount consistent with historical spend for Engineering; auto-approved.,0.79,,2025-05-25 10:44:00
+DEC-00046-D1,COMP-02,INV-00228-D1,Approve,Invoice matches purchase order and vendor risk profile is High; amount within department budget.,0.81,,2025-12-12 15:32:00
+DEC-00047-D1,COMP-01,INV-00096-D1,Approve,Amount consistent with historical spend for Marketing; auto-approved.,0.71,,2025-10-30 12:18:00
+DEC-00048-D1,COMP-04,INV-00072-D1,Approve,Amount consistent with historical spend for Marketing; auto-approved.,0.79,,2026-02-03 06:23:00
+DEC-00049-D1,COMP-03,INV-00060-D1,Flag for Review,Vendor risk profile is Medium; manual verification recommended before payment.,0.58,,2025-11-06 19:26:00
+DEC-00050-D1,COMP-02,INV-00142-D1,Approve,Recurring vendor with consistent billing pattern; no anomalies detected.,0.73,,2025-10-29 17:05:00
+DEC-00051-D1,COMP-02,INV-00199-D1,Approve,Amount consistent with historical spend for Operations; auto-approved.,0.77,,2025-05-08 05:52:00
+DEC-00052-D1,COMP-02,INV-00169-D1,Flag for Review,Vendor risk profile is Low; manual verification recommended before payment.,0.64,,2026-05-25 05:14:00
+DEC-00053-D1,COMP-05,INV-00201-D1,Approve,Recurring vendor with consistent billing pattern; no anomalies detected.,0.69,,2025-03-16 20:46:00
+DEC-00054-D1,COMP-05,INV-00247-D1,Reject,Vendor flagged as Low risk with prior fraud indicators.,0.71,,2025-02-24 12:56:00
+DEC-00055-D1,COMP-05,INV-00248-D1,Hold - Duplicate Suspected,Same amount and due date as an existing pending invoice from this vendor.,0.79,,2025-02-24 01:07:00
+DEC-00056-D1,COMP-04,INV-00236-D1,Flag for Review,Vendor risk profile is Low; manual verification recommended before payment.,0.82,,2025-01-24 12:31:00
+DEC-00057-D1,COMP-05,INV-00087-D1,Approve,Invoice matches purchase order and vendor risk profile is Low; amount within department budget.,0.87,,2025-03-02 07:53:00
+DEC-00058-D1,COMP-02,INV-00021-D1,Approve,Amount consistent with historical spend for HR; auto-approved.,0.56,,2025-04-24 01:32:00
+DEC-00059-D1,COMP-05,INV-00098-D1,Approve,Amount consistent with historical spend for R&D; auto-approved.,0.57,,2025-06-02 06:10:00
+DEC-00060-D1,COMP-03,INV-00213-D1,Flag for Review,Vendor risk profile is Medium; manual verification recommended before payment.,0.82,,2025-03-26 20:00:00
+DEC-00061-D1,COMP-01,INV-00277-D1,Reject,Invoice amount exceeds remaining HR budget allocation.,0.72,,2025-09-18 09:24:00
+DEC-00062-D1,COMP-03,INV-00161-D1,Reject,Vendor flagged as Medium risk with prior fraud indicators.,0.57,,2025-05-17 06:35:00
+DEC-00063-D1,COMP-04,INV-00139-D1,Approve,Invoice matches purchase order and vendor risk profile is Medium; amount within department budget.,0.59,,2025-12-03 07:11:00
+DEC-00064-D1,COMP-04,INV-00147-D1,Approve,Recurring vendor with consistent billing pattern; no anomalies detected.,0.72,,2025-01-31 12:57:00
+DEC-00065-D1,COMP-04,INV-00291-D1,Flag for Review,Invoice date falls outside normal billing cycle for this vendor.,0.9,,2025-03-05 15:33:00
+DEC-00066-D1,COMP-04,INV-00112-D1,Approve,Invoice matches purchase order and vendor risk profile is Medium; amount within department budget.,0.65,,2026-01-26 01:41:00
+DEC-00067-D1,COMP-03,INV-00015-D1,Approve,Amount consistent with historical spend for HR; auto-approved.,0.59,,2025-07-22 09:12:00
+DEC-00068-D1,COMP-02,INV-00316-D1,Hold - Duplicate Suspected,Line items closely match an invoice processed within the last 14 days.,0.77,,2026-05-28 11:08:00
+DEC-00069-D1,COMP-05,INV-00222-D1,Approve,Invoice matches purchase order and vendor risk profile is Low; amount within department budget.,0.82,,2026-06-25 07:34:00
+DEC-00070-D1,COMP-04,INV-00212-D1,Escalate,Amount exceeds auto-approval threshold and requires finance manager sign-off.,0.74,,2025-10-29 07:50:00
+DEC-00071-D1,COMP-03,INV-00090-D1,Approve,Amount consistent with historical spend for Legal; auto-approved.,0.64,,2026-02-22 15:53:00
+DEC-00072-D1,COMP-01,INV-00134-D1,Approve,Invoice matches purchase order and vendor risk profile is Medium; amount within department budget.,0.7,,2025-11-02 05:37:00
+DEC-00073-D1,COMP-03,INV-00091-D1,Approve,Invoice matches purchase order and vendor risk profile is Low; amount within department budget.,0.85,,2026-03-23 16:21:00
+DEC-00074-D1,COMP-05,INV-00210-D1,Approve,Recurring vendor with consistent billing pattern; no anomalies detected.,0.61,,2025-02-16 23:53:00
+DEC-00075-D1,COMP-03,INV-00158-D1,Approve,Invoice matches purchase order and vendor risk profile is Low; amount within department budget.,0.77,,2025-11-30 22:17:00
+DEC-00076-D1,COMP-01,INV-00330-D1,Flag for Review,Invoice date falls outside normal billing cycle for this vendor.,0.69,,2025-08-14 05:10:00
+DEC-00077-D1,COMP-02,INV-00130-D1,Reject,Invoice amount exceeds remaining R&D budget allocation.,0.7,,2026-03-27 16:19:00
+DEC-00078-D1,COMP-03,INV-00252-D1,Flag for Review,Invoice date falls outside normal billing cycle for this vendor.,0.71,,2025-04-09 11:26:00
+DEC-00079-D1,COMP-04,INV-00208-D1,Flag for Review,Vendor risk profile is Low; manual verification recommended before payment.,0.65,,2025-11-04 05:03:00
+DEC-00080-D1,COMP-04,INV-00265-D1,Flag for Review,Amount deviates 57% from vendor's historical average invoice value.,0.86,,2025-10-18 00:20:00
+DEC-00081-D1,COMP-01,INV-00190-D1,Approve,Recurring vendor with consistent billing pattern; no anomalies detected.,0.83,,2026-03-17 01:34:00
+DEC-00082-D1,COMP-02,INV-00093-D1,Flag for Review,Invoice date falls outside normal billing cycle for this vendor.,0.71,,2025-02-23 23:43:00
+DEC-00083-D1,COMP-03,INV-00317-D1,Escalate,Unusual spend pattern detected across multiple invoices from this vendor this month.,0.69,,2025-01-18 07:19:00
+DEC-00084-D1,COMP-02,INV-00309-D1,Escalate,Amount exceeds auto-approval threshold and requires finance manager sign-off.,0.89,,2025-03-16 00:37:00
+DEC-00085-D1,COMP-02,INV-00017-D1,Approve,Invoice matches purchase order and vendor risk profile is High; amount within department budget.,0.84,,2025-01-23 18:40:00
+DEC-00086-D1,COMP-04,INV-00013-D1,Approve,Recurring vendor with consistent billing pattern; no anomalies detected.,0.6,,2026-06-30 17:47:00
+DEC-00087-D1,COMP-04,INV-00079-D1,Approve,Recurring vendor with consistent billing pattern; no anomalies detected.,0.67,,2026-01-07 08:52:00
+DEC-00088-D1,COMP-01,INV-00183-D1,Approve,Recurring vendor with consistent billing pattern; no anomalies detected.,0.87,,2025-04-19 18:36:00
+DEC-00089-D1,COMP-03,INV-00274-D1,Reject,Vendor flagged as Low risk with prior fraud indicators.,0.82,,2025-05-25 20:23:00
+DEC-00090-D1,COMP-03,INV-00205-D1,Reject,Vendor flagged as Low risk with prior fraud indicators.,0.8,,2025-12-01 11:24:00
+DEC-00091-D1,COMP-02,INV-00155-D1,Approve,Invoice matches purchase order and vendor risk profile is Low; amount within department budget.,0.75,,2026-04-20 13:02:00
+DEC-00092-D1,COMP-01,INV-00111-D1,Approve,Recurring vendor with consistent billing pattern; no anomalies detected.,0.75,,2026-06-15 09:50:00
+DEC-00093-D1,COMP-02,INV-00069-D1,Flag for Review,Invoice date falls outside normal billing cycle for this vendor.,0.77,,2025-10-21 05:08:00
+DEC-00094-D1,COMP-05,INV-00276-D1,Reject,Duplicate invoice number detected for the same vendor and amount.,0.69,,2025-05-15 15:52:00
+DEC-00095-D1,COMP-01,INV-00019-D1,Approve,Recurring vendor with consistent billing pattern; no anomalies detected.,0.73,,2025-02-10 11:44:00
+DEC-00096-D1,COMP-01,INV-00088-D1,Approve,Recurring vendor with consistent billing pattern; no anomalies detected.,0.88,,2025-05-15 17:02:00
+DEC-00097-D1,COMP-05,INV-00249-D1,Flag for Review,Amount deviates 81% from vendor's historical average invoice value.,0.88,,2025-05-17 21:47:00
+DEC-00098-D1,COMP-05,INV-00035-D1,Approve,Amount consistent with historical spend for Sales; auto-approved.,0.73,,2026-04-11 19:23:00
+DEC-00099-D1,COMP-01,INV-00040-D1,Approve,Invoice matches purchase order and vendor risk profile is Low; amount within department budget.,0.61,,2025-09-01 20:13:00
+DEC-00100-D1,COMP-04,INV-00246-D1,Flag for Review,Vendor risk profile is Low; manual verification recommended before payment.,0.87,,2025-08-19 05:25:00
+DEC-00101-D1,COMP-04,INV-00002-D1,Flag for Review,Amount deviates 83% from vendor's historical average invoice value.,0.62,,2026-06-29 07:01:00
+DEC-00102-D1,COMP-04,INV-00083-D1,Approve,Amount consistent with historical spend for Customer Success; auto-approved.,0.85,,2026-04-28 12:54:00
+DEC-00103-D1,COMP-03,INV-00095-D1,Flag for Review,Amount deviates 64% from vendor's historical average invoice value.,0.88,,2026-03-18 19:40:00
+DEC-00104-D1,COMP-02,INV-00188-D1,Hold - Duplicate Suspected,Same amount and due date as an existing pending invoice from this vendor.,0.78,,2025-09-17 08:27:00
+DEC-00105-D1,COMP-02,INV-00305-D1,Reject,Vendor flagged as Low risk with prior fraud indicators.,0.95,,2026-01-29 11:19:00
+DEC-00106-D1,COMP-01,INV-00082-D1,Approve,Recurring vendor with consistent billing pattern; no anomalies detected.,0.7,,2025-04-05 20:25:00
+DEC-00107-D1,COMP-01,INV-00030-D1,Approve,Invoice matches purchase order and vendor risk profile is Medium; amount within department budget.,0.69,,2026-05-08 01:57:00
+DEC-00108-D1,COMP-04,INV-00198-D1,Approve,Amount consistent with historical spend for Customer Success; auto-approved.,0.63,,2025-09-28 16:20:00
+DEC-00109-D1,COMP-04,INV-00230-D1,Approve,Amount consistent with historical spend for Marketing; auto-approved.,0.87,,2026-03-03 04:47:00
+DEC-00110-D1,COMP-05,INV-00219-D1,Flag for Review,Amount deviates 37% from vendor's historical average invoice value.,0.75,,2025-09-16 01:48:00
+DEC-00111-D1,COMP-04,INV-00007-D1,Flag for Review,Amount deviates 39% from vendor's historical average invoice value.,0.75,,2025-10-15 21:33:00
+DEC-00112-D1,COMP-05,INV-00244-D1,Reject,Duplicate invoice number detected for the same vendor and amount.,0.85,,2025-06-28 11:11:00
+DEC-00113-D1,COMP-04,INV-00326-D1,Hold - Duplicate Suspected,Same amount and due date as an existing pending invoice from this vendor.,0.81,,2025-04-22 15:24:00
+DEC-00114-D1,COMP-02,INV-00009-D1,Flag for Review,Amount deviates 46% from vendor's historical average invoice value.,0.65,,2026-02-23 04:19:00
+DEC-00115-D1,COMP-02,INV-00296-D1,Flag for Review,Amount deviates 22% from vendor's historical average invoice value.,0.82,,2024-09-13 12:26:00
+DEC-00116-D1,COMP-04,INV-00299-D1,Hold - Duplicate Suspected,Line items closely match an invoice processed within the last 14 days.,0.92,,2026-03-18 11:07:00
+DEC-00117-D1,COMP-03,INV-00174-D1,Approve,Invoice matches purchase order and vendor risk profile is Medium; amount within department budget.,0.85,,2025-07-06 08:08:00
+DEC-00118-D1,COMP-03,INV-00273-D1,Escalate,Amount exceeds auto-approval threshold and requires finance manager sign-off.,0.86,,2025-05-25 17:35:00
+DEC-00119-D1,COMP-01,INV-00020-D1,Approve,Amount consistent with historical spend for Marketing; auto-approved.,0.68,,2026-06-27 06:03:00
+DEC-00120-D1,COMP-04,INV-00255-D1,Flag for Review,Amount deviates 26% from vendor's historical average invoice value.,0.91,,2025-09-09 16:08:00
+DEC-00121-D1,COMP-02,INV-00227-D1,Approve,Amount consistent with historical spend for Customer Success; auto-approved.,0.79,,2025-12-13 17:00:00
+DEC-00122-D1,COMP-01,INV-00337-D1,Escalate,Unusual spend pattern detected across multiple invoices from this vendor this month.,0.74,,2026-06-21 04:01:00
+DEC-00123-D1,COMP-01,INV-00140-D1,Approve,Amount consistent with historical spend for HR; auto-approved.,0.83,,2025-12-18 19:13:00
+DEC-00124-D1,COMP-04,INV-00048-D1,Approve,Recurring vendor with consistent billing pattern; no anomalies detected.,0.75,,2025-12-29 13:06:00
+DEC-00125-D1,COMP-02,INV-00225-D1,Escalate,Unusual spend pattern detected across multiple invoices from this vendor this month.,0.88,,2025-12-01 12:43:00
+DEC-00126-D1,COMP-03,INV-00261-D1,Escalate,Amount exceeds auto-approval threshold and requires finance manager sign-off.,0.72,,2025-08-26 15:08:00
+DEC-00127-D1,COMP-05,INV-00300-D1,Reject,Invoice amount exceeds remaining Customer Success budget allocation.,0.93,,2025-07-05 03:23:00
+DEC-00128-D1,COMP-02,INV-00173-D1,Approve,Invoice matches purchase order and vendor risk profile is Medium; amount within department budget.,0.58,,2025-09-07 08:53:00
+DEC-00129-D1,COMP-02,INV-00319-D1,Flag for Review,Vendor risk profile is High; manual verification recommended before payment.,0.85,,2025-07-18 10:51:00
+DEC-00130-D1,COMP-02,INV-00203-D1,Approve,Recurring vendor with consistent billing pattern; no anomalies detected.,0.7,,2025-10-10 22:15:00
+DEC-00131-D1,COMP-03,INV-00031-D1,Approve,Recurring vendor with consistent billing pattern; no anomalies detected.,0.89,,2026-04-18 20:12:00
+DEC-00132-D1,COMP-01,INV-00124-D1,Approve,Amount consistent with historical spend for Operations; auto-approved.,0.87,,2026-06-12 18:47:00
+DEC-00133-D1,COMP-02,INV-00289-D1,Flag for Review,Vendor risk profile is Medium; manual verification recommended before payment.,0.69,,2024-03-05 13:26:00
+DEC-00134-D1,COMP-01,INV-00320-D1,Escalate,Amount exceeds auto-approval threshold and requires finance manager sign-off.,0.83,,2025-10-16 20:04:00
+DEC-00135-D1,COMP-04,INV-00005-D1,Hold - Duplicate Suspected,Same amount and due date as an existing pending invoice from this vendor.,0.8,,2025-09-14 13:49:00
+DEC-00136-D1,COMP-01,INV-00185-D1,Approve,Amount consistent with historical spend for Legal; auto-approved.,0.75,,2025-07-04 07:50:00
+DEC-00137-D1,COMP-04,INV-00303-D1,Reject,Invoice amount exceeds remaining Finance budget allocation.,0.91,,2026-01-22 02:44:00
+DEC-00138-D1,COMP-04,INV-00107-D1,Flag for Review,Invoice date falls outside normal billing cycle for this vendor.,0.55,,2025-03-30 22:37:00
+DEC-00139-D1,COMP-03,INV-00268-D1,Reject,Invoice amount exceeds remaining IT budget allocation.,0.76,,2025-12-31 19:23:00
+DEC-00140-D1,COMP-02,INV-00058-D1,Approve,Amount consistent with historical spend for Legal; auto-approved.,0.83,,2025-09-18 04:13:00
+DEC-00141-D1,COMP-01,INV-00149-D1,Approve,Invoice matches purchase order and vendor risk profile is Medium; amount within department budget.,0.56,,2025-08-27 23:09:00
+DEC-00142-D1,COMP-05,INV-00016-D1,Approve,Recurring vendor with consistent billing pattern; no anomalies detected.,0.69,,2026-03-08 20:32:00
+DEC-00143-D1,COMP-05,INV-00270-D1,Hold - Duplicate Suspected,Same amount and due date as an existing pending invoice from this vendor.,0.93,,2025-03-28 09:29:00
+DEC-00144-D1,COMP-03,INV-00239-D1,Reject,Invoice amount exceeds remaining Customer Success budget allocation.,0.79,,2025-12-02 16:34:00
+DEC-00145-D1,COMP-05,INV-00215-D1,Approve,Recurring vendor with consistent billing pattern; no anomalies detected.,0.64,,2026-06-14 14:32:00
+DEC-00146-D1,COMP-05,INV-00168-D1,Flag for Review,Invoice date falls outside normal billing cycle for this vendor.,0.58,,2026-06-02 03:50:00
+DEC-00147-D1,COMP-01,INV-00187-D1,Escalate,Amount exceeds auto-approval threshold and requires finance manager sign-off.,0.6,,2026-01-11 22:23:00
+DEC-00148-D1,COMP-03,INV-00062-D1,Approve,Amount consistent with historical spend for IT; auto-approved.,0.77,,2025-01-06 07:46:00
+DEC-00149-D1,COMP-03,INV-00050-D1,Approve,Invoice matches purchase order and vendor risk profile is Medium; amount within department budget.,0.59,,2025-02-24 02:48:00
+DEC-00150-D1,COMP-04,INV-00162-D1,Approve,Recurring vendor with consistent billing pattern; no anomalies detected.,0.74,,2026-05-12 03:09:00
+DEC-00151-D1,COMP-05,INV-00056-D1,Approve,Amount consistent with historical spend for IT; auto-approved.,0.81,,2026-02-18 14:13:00
+DEC-00152-D1,COMP-01,INV-00186-D1,Approve,Invoice matches purchase order and vendor risk profile is Medium; amount within department budget.,0.86,,2026-06-04 15:10:00
+DEC-00153-D1,COMP-03,INV-00136-D1,Approve,Amount consistent with historical spend for Finance; auto-approved.,0.84,,2025-12-01 13:49:00
+DEC-00154-D1,COMP-02,INV-00144-D1,Approve,Recurring vendor with consistent billing pattern; no anomalies detected.,0.68,,2026-04-14 07:58:00
+DEC-00155-D1,COMP-02,INV-00267-D1,Flag for Review,Vendor risk profile is High; manual verification recommended before payment.,0.91,,2026-06-03 21:52:00
+DEC-00156-D1,COMP-04,INV-00092-D1,Approve,Recurring vendor with consistent billing pattern; no anomalies detected.,0.81,,2025-07-27 00:54:00
+DEC-00157-D1,COMP-01,INV-00128-D1,Approve,Invoice matches purchase order and vendor risk profile is Low; amount within department budget.,0.89,,2025-05-02 13:58:00
+DEC-00158-D1,COMP-04,INV-00321-D1,Flag for Review,Vendor risk profile is Low; manual verification recommended before payment.,0.94,,2025-05-11 01:40:00
+DEC-00159-D1,COMP-02,INV-00001-D1,Approve,Invoice matches purchase order and vendor risk profile is High; amount within department budget.,0.56,,2026-05-09 13:18:00
+DEC-00160-D1,COMP-04,INV-00171-D1,Approve,Invoice matches purchase order and vendor risk profile is Medium; amount within department budget.,0.82,,2025-07-06 16:38:00
+DEC-00161-D1,COMP-03,INV-00307-D1,Reject,Duplicate invoice number detected for the same vendor and amount.,0.76,,2025-04-01 05:02:00
+DEC-00162-D1,COMP-03,INV-00272-D1,Escalate,Amount exceeds auto-approval threshold and requires finance manager sign-off.,0.74,,2025-03-12 01:01:00
+DEC-00163-D1,COMP-02,INV-00085-D1,Approve,Recurring vendor with consistent billing pattern; no anomalies detected.,0.61,,2025-01-06 10:08:00
+DEC-00164-D1,COMP-05,INV-00126-D1,Approve,Invoice matches purchase order and vendor risk profile is Medium; amount within department budget.,0.9,,2025-02-04 01:37:00
+DEC-00165-D1,COMP-01,INV-00218-D1,Hold - Duplicate Suspected,Same amount and due date as an existing pending invoice from this vendor.,0.6,,2025-03-05 05:46:00
+DEC-00166-D1,COMP-03,INV-00176-D1,Approve,Amount consistent with historical spend for Sales; auto-approved.,0.81,,2026-07-02 07:00:00
+DEC-00167-D1,COMP-01,INV-00283-D1,Flag for Review,Amount deviates 37% from vendor's historical average invoice value.,0.89,,2025-09-11 08:32:00
+DEC-00168-D1,COMP-02,INV-00204-D1,Approve,Recurring vendor with consistent billing pattern; no anomalies detected.,0.66,,2026-04-08 21:54:00
+DEC-00169-D1,COMP-02,INV-00221-D1,Approve,Recurring vendor with consistent billing pattern; no anomalies detected.,0.58,,2025-12-10 19:43:00
+DEC-00170-D1,COMP-05,INV-00045-D1,Reject,Invoice amount exceeds remaining R&D budget allocation.,0.89,,2026-04-24 18:19:00
+DEC-00171-D1,COMP-04,INV-00076-D1,Reject,Invoice amount exceeds remaining Sales budget allocation.,0.8,,2025-02-16 06:11:00
+DEC-00172-D1,COMP-04,INV-00102-D1,Approve,Invoice matches purchase order and vendor risk profile is Low; amount within department budget.,0.65,,2025-02-16 11:04:00
+DEC-00173-D1,COMP-01,INV-00223-D1,Approve,Recurring vendor with consistent billing pattern; no anomalies detected.,0.69,,2026-01-08 06:33:00
+DEC-00174-D1,COMP-05,INV-00196-D1,Approve,Invoice matches purchase order and vendor risk profile is Medium; amount within department budget.,0.72,,2025-04-05 02:55:00
+DEC-00175-D1,COMP-02,INV-00080-D1,Escalate,Amount exceeds auto-approval threshold and requires finance manager sign-off.,0.8,,2026-05-16 17:33:00
+DEC-00176-D1,COMP-03,INV-00064-D1,Approve,Recurring vendor with consistent billing pattern; no anomalies detected.,0.57,,2025-04-12 05:41:00
+DEC-00177-D1,COMP-04,INV-00170-D1,Reject,Vendor flagged as Low risk with prior fraud indicators.,0.74,,2025-08-05 00:41:00
+DEC-00178-D1,COMP-01,INV-00138-D1,Approve,Recurring vendor with consistent billing pattern; no anomalies detected.,0.76,,2025-07-31 06:46:00
+DEC-00179-D1,COMP-02,INV-00315-D1,Reject,Vendor flagged as Medium risk with prior fraud indicators.,0.89,,2025-09-10 00:01:00
+DEC-00180-D1,COMP-01,INV-00108-D1,Flag for Review,Amount deviates 28% from vendor's historical average invoice value.,0.87,,2026-05-19 06:26:00
+DEC-00181-D1,COMP-04,INV-00253-D1,Flag for Review,Vendor risk profile is Medium; manual verification recommended before payment.,0.9,,2025-06-05 03:01:00
+DEC-00182-D1,COMP-04,INV-00180-D1,Approve,Amount consistent with historical spend for Customer Success; auto-approved.,0.7,,2026-03-08 17:33:00
+DEC-00183-D1,COMP-04,INV-00334-D1,Escalate,Unusual spend pattern detected across multiple invoices from this vendor this month.,0.69,,2025-12-03 11:45:00
+DEC-00184-D1,COMP-01,INV-00165-D1,Hold - Duplicate Suspected,Same amount and due date as an existing pending invoice from this vendor.,0.85,,2025-06-17 01:53:00
+DEC-00185-D1,COMP-02,INV-00053-D1,Approve,Amount consistent with historical spend for R&D; auto-approved.,0.89,,2025-06-06 15:43:00
+DEC-00186-D1,COMP-01,INV-00292-D1,Flag for Review,Amount deviates 47% from vendor's historical average invoice value.,0.92,,2024-11-26 20:53:00
+DEC-00187-D1,COMP-01,INV-00301-D1,Reject,Duplicate invoice number detected for the same vendor and amount.,0.9,,2025-02-11 22:07:00
+DEC-00188-D1,COMP-01,INV-00172-D1,Approve,Invoice matches purchase order and vendor risk profile is Medium; amount within department budget.,0.66,,2025-05-10 00:31:00
+DEC-00189-D1,COMP-05,INV-00145-D1,Approve,Invoice matches purchase order and vendor risk profile is Low; amount within department budget.,0.7,,2026-06-26 08:54:00
+DEC-00190-D1,COMP-01,INV-00175-D1,Flag for Review,Invoice date falls outside normal billing cycle for this vendor.,0.65,,2026-03-12 16:44:00
+DEC-00191-D1,COMP-02,INV-00318-D1,Hold - Duplicate Suspected,Line items closely match an invoice processed within the last 14 days.,0.89,,2026-06-03 04:48:00
+DEC-00192-D1,COMP-02,INV-00189-D1,Approve,Recurring vendor with consistent billing pattern; no anomalies detected.,0.69,,2026-06-12 05:31:00
+DEC-00193-D1,COMP-05,INV-00260-D1,Flag for Review,Amount deviates 45% from vendor's historical average invoice value.,0.74,,2025-03-25 02:29:00
+DEC-00194-D1,COMP-04,INV-00254-D1,Reject,Vendor flagged as Medium risk with prior fraud indicators.,0.95,,2026-01-20 00:07:00
+DEC-00195-D1,COMP-03,INV-00259-D1,Reject,Invoice amount exceeds remaining Finance budget allocation.,0.68,,2026-05-12 17:09:00
+DEC-00196-D1,COMP-04,INV-00285-D1,Flag for Review,Amount deviates 44% from vendor's historical average invoice value.,0.8,,2026-03-02 12:20:00
+DEC-00197-D1,COMP-05,INV-00109-D1,Approve,Invoice matches purchase order and vendor risk profile is Low; amount within department budget.,0.66,,2025-10-13 00:00:00
+DEC-00198-D1,COMP-03,INV-00214-D1,Approve,Amount consistent with historical spend for Operations; auto-approved.,0.68,,2025-04-30 22:16:00
+DEC-00199-D1,COMP-01,INV-00195-D1,Approve,Invoice matches purchase order and vendor risk profile is Low; amount within department budget.,0.62,,2026-04-26 16:11:00
+DEC-00200-D1,COMP-01,INV-00178-D1,Approve,Amount consistent with historical spend for IT; auto-approved.,0.83,,2026-01-28 14:32:00
+DEC-00201-D1,COMP-05,INV-00100-D1,Escalate,Amount exceeds auto-approval threshold and requires finance manager sign-off.,0.6,,2025-08-11 08:42:00
+DEC-00202-D1,COMP-05,INV-00271-D1,Escalate,Unusual spend pattern detected across multiple invoices from this vendor this month.,0.89,,2025-02-06 10:32:00
+DEC-00203-D1,COMP-04,INV-00258-D1,Flag for Review,Amount deviates 78% from vendor's historical average invoice value.,0.81,,2025-05-17 22:22:00
+DEC-00204-D1,COMP-04,INV-00311-D1,Reject,Duplicate invoice number detected for the same vendor and amount.,0.93,,2025-05-06 23:08:00
+DEC-00205-D1,COMP-04,INV-00025-D1,Approve,Recurring vendor with consistent billing pattern; no anomalies detected.,0.66,,2025-01-30 22:31:00
+DEC-00206-D1,COMP-05,INV-00137-D1,Approve,Recurring vendor with consistent billing pattern; no anomalies detected.,0.76,,2026-03-26 05:39:00
+DEC-00207-D1,COMP-04,INV-00179-D1,Approve,Invoice matches purchase order and vendor risk profile is Medium; amount within department budget.,0.65,,2026-03-29 06:29:00
+DEC-00208-D1,COMP-01,INV-00067-D1,Flag for Review,Amount deviates 73% from vendor's historical average invoice value.,0.72,,2025-06-23 12:29:00
+DEC-00209-D1,COMP-02,INV-00242-D1,Flag for Review,Vendor risk profile is High; manual verification recommended before payment.,0.83,,2025-10-20 22:57:00
+DEC-00210-D1,COMP-01,INV-00063-D1,Approve,Recurring vendor with consistent billing pattern; no anomalies detected.,0.61,,2025-12-11 04:19:00
+DEC-00211-D1,COMP-04,INV-00256-D1,Flag for Review,Invoice date falls outside normal billing cycle for this vendor.,0.81,,2026-05-16 05:05:00
+DEC-00212-D1,COMP-05,INV-00157-D1,Flag for Review,Amount deviates 47% from vendor's historical average invoice value.,0.67,,2025-10-24 17:36:00
+DEC-00213-D1,COMP-04,INV-00235-D1,Reject,Duplicate invoice number detected for the same vendor and amount.,0.77,,2025-01-22 03:38:00
+DEC-00214-D1,COMP-02,INV-00066-D1,Approve,Recurring vendor with consistent billing pattern; no anomalies detected.,0.58,,2025-08-19 13:27:00
+DEC-00215-D1,COMP-05,INV-00042-D1,Approve,Recurring vendor with consistent billing pattern; no anomalies detected.,0.88,,2026-06-20 15:14:00
+DEC-00216-D1,COMP-04,INV-00202-D1,Flag for Review,Amount deviates 24% from vendor's historical average invoice value.,0.79,,2026-04-02 01:00:00
+DEC-00217-D1,COMP-05,INV-00148-D1,Approve,Invoice matches purchase order and vendor risk profile is High; amount within department budget.,0.7,,2025-08-16 15:31:00
+DEC-00218-D1,COMP-04,INV-00286-D1,Escalate,Unusual spend pattern detected across multiple invoices from this vendor this month.,0.7,,2026-03-01 22:44:00
+DEC-00219-D1,COMP-01,INV-00278-D1,Flag for Review,Amount deviates 56% from vendor's historical average invoice value.,0.79,,2025-09-19 21:57:00
+DEC-00220-D1,COMP-03,INV-00029-D1,Approve,Invoice matches purchase order and vendor risk profile is Low; amount within department budget.,0.72,,2026-01-30 14:57:00
+DEC-00221-D1,COMP-02,INV-00146-D1,Approve,Amount consistent with historical spend for R&D; auto-approved.,0.65,,2026-02-12 12:44:00
+DEC-00222-D1,COMP-02,INV-00231-D1,Hold - Duplicate Suspected,Line items closely match an invoice processed within the last 14 days.,0.92,,2025-10-06 18:55:00
+DEC-00223-D1,COMP-04,INV-00123-D1,Approve,Invoice matches purchase order and vendor risk profile is Low; amount within department budget.,0.78,,2025-10-27 04:59:00
+DEC-00224-D1,COMP-01,INV-00143-D1,Approve,Amount consistent with historical spend for Operations; auto-approved.,0.79,,2025-06-05 04:54:00
+DEC-00225-D1,COMP-04,INV-00084-D1,Approve,Amount consistent with historical spend for Finance; auto-approved.,0.89,,2025-06-24 16:55:00
+DEC-00226-D1,COMP-03,INV-00089-D1,Escalate,Amount exceeds auto-approval threshold and requires finance manager sign-off.,0.82,,2026-04-13 06:26:00
+DEC-00227-D1,COMP-01,INV-00251-D1,Escalate,Unusual spend pattern detected across multiple invoices from this vendor this month.,0.91,,2025-03-13 02:47:00
+DEC-00228-D1,COMP-05,INV-00200-D1,Approve,Recurring vendor with consistent billing pattern; no anomalies detected.,0.85,,2025-03-12 10:34:00
+DEC-00229-D1,COMP-04,INV-00023-D1,Approve,Amount consistent with historical spend for Finance; auto-approved.,0.83,,2025-06-18 06:25:00
+DEC-00230-D1,COMP-05,INV-00122-D1,Flag for Review,Vendor risk profile is Medium; manual verification recommended before payment.,0.69,,2026-05-05 14:55:00
+DEC-00231-D1,COMP-02,INV-00070-D1,Approve,Recurring vendor with consistent billing pattern; no anomalies detected.,0.65,,2026-06-12 18:47:00
+DEC-00232-D1,COMP-03,INV-00141-D1,Approve,Recurring vendor with consistent billing pattern; no anomalies detected.,0.86,,2025-07-12 17:20:00
+DEC-00233-D1,COMP-03,INV-00117-D1,Flag for Review,Invoice date falls outside normal billing cycle for this vendor.,0.74,,2026-06-14 20:52:00
+DEC-00234-D1,COMP-03,INV-00061-D1,Approve,Recurring vendor with consistent billing pattern; no anomalies detected.,0.65,,2025-01-26 18:00:00
+DEC-00235-D1,COMP-05,INV-00329-D1,Hold - Duplicate Suspected,Same amount and due date as an existing pending invoice from this vendor.,0.93,,2025-05-27 05:35:00
+DEC-00236-D1,COMP-04,INV-00036-D1,Approve,Recurring vendor with consistent billing pattern; no anomalies detected.,0.89,,2026-01-23 09:23:00
+DEC-00237-D1,COMP-04,INV-00028-D1,Hold - Duplicate Suspected,Same amount and due date as an existing pending invoice from this vendor.,0.8,,2025-08-20 00:04:00
+DEC-00238-D1,COMP-02,INV-00120-D1,Approve,Recurring vendor with consistent billing pattern; no anomalies detected.,0.84,,2025-03-11 00:50:00
+DEC-00239-D1,COMP-02,INV-00220-D1,Flag for Review,Amount deviates 39% from vendor's historical average invoice value.,0.79,,2025-06-29 04:19:00
+DEC-00240-D1,COMP-05,INV-00233-D1,Escalate,Amount exceeds auto-approval threshold and requires finance manager sign-off.,0.72,,2026-05-27 13:16:00
+DEC-00241-D1,COMP-03,INV-00211-D1,Flag for Review,Vendor risk profile is Low; manual verification recommended before payment.,0.66,,2026-03-02 06:03:00
+DEC-00242-D1,COMP-05,INV-00097-D1,Flag for Review,Vendor risk profile is Low; manual verification recommended before payment.,0.73,,2026-01-28 10:02:00
+DEC-00243-D1,COMP-05,INV-00324-D1,Flag for Review,Amount deviates 78% from vendor's historical average invoice value.,0.79,,2025-08-25 11:16:00
+DEC-00244-D1,COMP-05,INV-00322-D1,Flag for Review,Invoice date falls outside normal billing cycle for this vendor.,0.73,,2025-05-07 09:20:00
+DEC-00245-D1,COMP-01,INV-00333-D1,Hold - Duplicate Suspected,Line items closely match an invoice processed within the last 14 days.,0.93,,2026-03-13 10:40:00
+DEC-00246-D1,COMP-01,INV-00132-D1,Approve,Invoice matches purchase order and vendor risk profile is Low; amount within department budget.,0.68,,2026-06-09 15:16:00
+DEC-00247-D1,COMP-04,INV-00197-D1,Escalate,Unusual spend pattern detected across multiple invoices from this vendor this month.,0.68,,2026-04-03 09:06:00
+DEC-00248-D1,COMP-05,INV-00250-D1,Flag for Review,Vendor risk profile is Low; manual verification recommended before payment.,0.76,,2025-05-20 21:53:00
+DEC-00249-D1,COMP-01,INV-00282-D1,Hold - Duplicate Suspected,Same amount and due date as an existing pending invoice from this vendor.,0.77,,2026-01-15 21:53:00
+DEC-00250-D1,COMP-02,INV-00152-D1,Hold - Duplicate Suspected,Line items closely match an invoice processed within the last 14 days.,0.86,,2025-11-02 14:09:00
+DEC-00251-D1,COMP-02,INV-00177-D1,Approve,Recurring vendor with consistent billing pattern; no anomalies detected.,0.85,,2025-04-16 05:24:00
+DEC-00252-D1,COMP-04,INV-00206-D1,Approve,Invoice matches purchase order and vendor risk profile is Low; amount within department budget.,0.89,,2025-05-04 22:19:00
+DEC-00253-D1,COMP-04,INV-00099-D1,Approve,Invoice matches purchase order and vendor risk profile is Low; amount within department budget.,0.77,,2026-01-09 22:25:00
+DEC-00254-D1,COMP-05,INV-00047-D1,Flag for Review,Amount deviates 34% from vendor's historical average invoice value.,0.72,,2025-09-13 14:46:00
+DEC-00255-D1,COMP-04,INV-00327-D1,Flag for Review,Invoice date falls outside normal billing cycle for this vendor.,0.7,,2026-04-13 15:29:00
+DEC-00256-D1,COMP-04,INV-00008-D1,Flag for Review,Vendor risk profile is Low; manual verification recommended before payment.,0.83,,2025-03-05 05:38:00
+DEC-00257-D1,COMP-04,INV-00217-D1,Hold - Duplicate Suspected,Same amount and due date as an existing pending invoice from this vendor.,0.87,,2025-11-22 22:37:00
+DEC-00258-D1,COMP-01,INV-00129-D1,Flag for Review,Vendor risk profile is Low; manual verification recommended before payment.,0.56,,2025-12-17 15:04:00
+DEC-00259-D1,COMP-05,INV-00308-D1,Escalate,Amount exceeds auto-approval threshold and requires finance manager sign-off.,0.71,,2025-12-05 19:24:00
+DEC-00260-D1,COMP-05,INV-00049-D1,Approve,Recurring vendor with consistent billing pattern; no anomalies detected.,0.63,,2025-06-28 17:41:00
+DEC-00261-D1,COMP-01,INV-00281-D1,Flag for Review,Invoice date falls outside normal billing cycle for this vendor.,0.75,,2026-01-15 09:37:00
+DEC-00262-D1,COMP-01,INV-00288-D1,Reject,Invoice amount exceeds remaining Customer Success budget allocation.,0.79,,2026-06-28 06:19:00
+DEC-00263-D1,COMP-04,INV-00224-D1,Approve,Invoice matches purchase order and vendor risk profile is Low; amount within department budget.,0.59,,2025-01-16 16:47:00
+DEC-00264-D1,COMP-05,INV-00046-D1,Approve,Amount consistent with historical spend for HR; auto-approved.,0.67,,2026-03-14 06:20:00
+DEC-00265-D1,COMP-03,INV-00150-D1,Approve,Invoice matches purchase order and vendor risk profile is Low; amount within department budget.,0.89,,2026-01-18 05:46:00
+DEC-00266-D1,COMP-01,INV-00290-D1,Hold - Duplicate Suspected,Same amount and due date as an existing pending invoice from this vendor.,0.85,,2024-07-04 02:45:00
+DEC-00267-D1,COMP-01,INV-00010-D1,Approve,Invoice matches purchase order and vendor risk profile is Medium; amount within department budget.,0.74,,2025-04-09 06:13:00
+DEC-00268-D1,COMP-01,INV-00065-D1,Approve,Amount consistent with historical spend for HR; auto-approved.,0.72,,2026-06-03 18:34:00
+DEC-00269-D1,COMP-02,INV-00328-D1,Reject,Vendor flagged as Low risk with prior fraud indicators.,0.9,,2025-08-08 04:16:00
+DEC-00270-D1,COMP-04,INV-00033-D1,Approve,Amount consistent with historical spend for Sales; auto-approved.,0.63,,2026-05-11 17:19:00
+DEC-00271-D1,COMP-02,INV-00115-D1,Approve,Invoice matches purchase order and vendor risk profile is Low; amount within department budget.,0.83,,2025-05-12 20:55:00
+DEC-00272-D1,COMP-02,INV-00331-D1,Reject,Vendor flagged as Low risk with prior fraud indicators.,0.69,,2025-09-11 00:10:00
+DEC-00273-D1,COMP-03,INV-00012-D1,Approve,Amount consistent with historical spend for Operations; auto-approved.,0.63,,2025-03-24 02:52:00
+DEC-00274-D1,COMP-02,INV-00207-D1,Approve,Amount consistent with historical spend for Finance; auto-approved.,0.86,,2025-11-26 09:31:00
+DEC-00275-D1,COMP-01,INV-00335-D1,Reject,Invoice amount exceeds remaining Marketing budget allocation.,0.83,,2025-05-22 05:59:00
+DEC-00276-D1,COMP-01,INV-00266-D1,Flag for Review,Amount deviates 77% from vendor's historical average invoice value.,0.76,,2026-01-12 23:10:00
+DEC-00277-D1,COMP-02,INV-00125-D1,Flag for Review,Amount deviates 82% from vendor's historical average invoice value.,0.58,,2025-10-08 10:18:00
+DEC-00278-D1,COMP-03,INV-00105-D1,Approve,Recurring vendor with consistent billing pattern; no anomalies detected.,0.71,,2026-05-14 18:05:00
+DEC-00279-D1,COMP-04,INV-00027-D1,Approve,Amount consistent with historical spend for HR; auto-approved.,0.72,,2025-12-11 23:19:00
+DEC-00280-D1,COMP-02,INV-00032-D1,Approve,Invoice matches purchase order and vendor risk profile is Low; amount within department budget.,0.8,,2025-05-25 05:42:00
+DEC-00281-D1,COMP-05,INV-00154-D1,Approve,Recurring vendor with consistent billing pattern; no anomalies detected.,0.68,,2025-10-24 09:33:00
+DEC-00282-D1,COMP-04,INV-00306-D1,Flag for Review,Vendor risk profile is High; manual verification recommended before payment.,0.82,,2025-08-10 22:04:00
+DEC-00283-D1,COMP-04,INV-00245-D1,Reject,Vendor flagged as Low risk with prior fraud indicators.,0.94,,2025-08-15 06:41:00
+DEC-00284-D1,COMP-01,INV-00110-D1,Approve,Amount consistent with historical spend for Customer Success; auto-approved.,0.64,,2026-05-07 01:14:00
+DEC-00285-D1,COMP-03,INV-00077-D1,Approve,Invoice matches purchase order and vendor risk profile is Low; amount within department budget.,0.63,,2025-06-09 22:04:00
+DEC-00286-D1,COMP-05,INV-00312-D1,Escalate,Amount exceeds auto-approval threshold and requires finance manager sign-off.,0.8,,2025-04-12 20:59:00
+DEC-00287-D1,COMP-05,INV-00216-D1,Approve,Recurring vendor with consistent billing pattern; no anomalies detected.,0.69,,2025-04-06 10:29:00
+DEC-00288-D1,COMP-01,INV-00068-D1,Approve,Invoice matches purchase order and vendor risk profile is Medium; amount within department budget.,0.71,,2026-04-16 21:19:00
+DEC-00289-D1,COMP-05,INV-00160-D1,Approve,Recurring vendor with consistent billing pattern; no anomalies detected.,0.81,,2026-06-27 10:12:00
+DEC-00290-D1,COMP-05,INV-00167-D1,Approve,Amount consistent with historical spend for Engineering; auto-approved.,0.79,,2025-08-01 18:01:00
+DEC-00291-D1,COMP-03,INV-00193-D1,Approve,Recurring vendor with consistent billing pattern; no anomalies detected.,0.56,,2025-09-04 12:43:00
+DEC-00292-D1,COMP-03,INV-00264-D1,Hold - Duplicate Suspected,Same amount and due date as an existing pending invoice from this vendor.,0.91,,2025-03-25 10:22:00
+DEC-00293-D1,COMP-03,INV-00022-D1,Approve,Invoice matches purchase order and vendor risk profile is Low; amount within department budget.,0.64,,2025-08-09 00:55:00
+DEC-00294-D1,COMP-02,INV-00297-D1,Flag for Review,Amount deviates 59% from vendor's historical average invoice value.,0.91,,2025-03-29 04:29:00
+DEC-00295-D1,COMP-02,INV-00209-D1,Approve,Amount consistent with historical spend for Finance; auto-approved.,0.71,,2026-06-12 04:06:00
+DEC-00296-D1,COMP-05,INV-00075-D1,Flag for Review,Invoice date falls outside normal billing cycle for this vendor.,0.67,,2025-03-30 19:42:00
+DEC-00297-D1,COMP-02,INV-00304-D1,Reject,Vendor flagged as Low risk with prior fraud indicators.,0.89,,2025-04-18 14:18:00
+DEC-00298-D1,COMP-02,INV-00232-D1,Reject,Vendor flagged as High risk with prior fraud indicators.,0.71,,2025-10-08 18:11:00
+DEC-00299-D1,COMP-04,INV-00051-D1,Flag for Review,Invoice date falls outside normal billing cycle for this vendor.,0.86,,2025-08-23 06:13:00
+DEC-00300-D1,COMP-02,INV-00332-D1,Reject,Duplicate invoice number detected for the same vendor and amount.,0.81,,2025-11-03 07:57:00
+DEC-00001-D2,COMP-01,INV-00087-D2,Approve,Invoice matches purchase order and vendor risk profile is Low; amount within department budget.,,,2025-11-13 20:38:00
+DEC-00002-D2,COMP-01,INV-00066-D2,Reject,Vendor flagged as Low risk with prior fraud indicators.,,,2026-02-17 18:01:00
+DEC-00003-D2,COMP-01,INV-00126-D2,Flag for Review,Vendor risk profile is Low; manual verification recommended before payment.,,,2025-04-05 06:22:00
+DEC-00004-D2,COMP-01,INV-00158-D2,Flag for Review,Vendor risk profile is Low; manual verification recommended before payment.,,,2026-05-19 00:43:00
+DEC-00005-D2,COMP-01,INV-00118-D2,Flag for Review,Vendor risk profile is Medium; manual verification recommended before payment.,,,2025-06-08 14:51:00
+DEC-00006-D2,COMP-01,INV-00044-D2,Approve,Invoice matches purchase order and vendor risk profile is Low; amount within department budget.,,,2025-12-14 11:09:00
+DEC-00007-D2,COMP-01,INV-00091-D2,Approve,Amount consistent with historical spend for Marketing; auto-approved.,,,2025-02-15 02:20:00
+DEC-00008-D2,COMP-01,INV-00155-D2,Approve,Invoice matches purchase order and vendor risk profile is Low; amount within department budget.,,,2026-01-12 16:28:00
+DEC-00009-D2,COMP-01,INV-00036-D2,Approve,Recurring vendor with consistent billing pattern; no anomalies detected.,,,2026-05-10 17:05:00
+DEC-00010-D2,COMP-01,INV-00140-D2,Approve,Recurring vendor with consistent billing pattern; no anomalies detected.,,,2026-12-16 05:06:00
+DEC-00011-D2,COMP-01,INV-00157-D2,Approve,Recurring vendor with consistent billing pattern; no anomalies detected.,,,2025-09-24 12:38:00
+DEC-00012-D2,COMP-01,INV-00048-D2,Flag for Review,Vendor risk profile is Medium; manual verification recommended before payment.,,,2026-04-28 02:18:00
+DEC-00013-D2,COMP-01,INV-00139-D2,Approve,Invoice matches purchase order and vendor risk profile is Low; amount within department budget.,,,2026-07-16 19:10:00
+DEC-00014-D2,COMP-01,INV-00016-D2,Flag for Review,Amount deviates 32% from vendor's historical average invoice value.,,,2026-07-20 11:19:00
+DEC-00015-D2,COMP-01,INV-00135-D2,Approve,Invoice matches purchase order and vendor risk profile is Low; amount within department budget.,,,2025-07-11 22:27:00
+DEC-00016-D2,COMP-01,INV-00009-D2,Approve,Recurring vendor with consistent billing pattern; no anomalies detected.,,,2026-02-18 10:23:00
+DEC-00017-D2,COMP-01,INV-00020-D2,Approve,Invoice matches purchase order and vendor risk profile is Low; amount within department budget.,,,2025-12-08 02:29:00
+DEC-00018-D2,COMP-01,INV-00013-D2,Approve,Recurring vendor with consistent billing pattern; no anomalies detected.,,,2025-11-17 03:21:00
+DEC-00019-D2,COMP-01,INV-00002-D2,Reject,Invoice amount exceeds remaining Finance budget allocation.,,,2025-03-26 09:21:00
+DEC-00020-D2,COMP-01,INV-00106-D2,Approve,Amount consistent with historical spend for Legal; auto-approved.,,,2026-08-10 15:20:00
+DEC-00021-D2,COMP-01,INV-00152-D2,Flag for Review,Invoice date falls outside normal billing cycle for this vendor.,,,2026-03-27 14:20:00
+DEC-00022-D2,COMP-01,INV-00060-D2,Approve,Recurring vendor with consistent billing pattern; no anomalies detected.,,,2025-05-30 14:47:00
+DEC-00023-D2,COMP-01,INV-00018-D2,Flag for Review,Vendor risk profile is Medium; manual verification recommended before payment.,,,2026-06-05 18:24:00
+DEC-00024-D2,COMP-01,INV-00039-D2,Approve,Recurring vendor with consistent billing pattern; no anomalies detected.,,,2025-08-24 15:59:00
+DEC-00025-D2,COMP-01,INV-00003-D2,Flag for Review,Invoice date falls outside normal billing cycle for this vendor.,,,2025-04-05 00:43:00
+DEC-00026-D2,COMP-01,INV-00056-D2,Reject,Duplicate invoice number detected for the same vendor and amount.,,,2025-07-15 03:28:00
+DEC-00027-D2,COMP-01,INV-00130-D2,Reject,Vendor flagged as Low risk with prior fraud indicators.,,,2026-04-07 05:43:00
+DEC-00028-D2,COMP-01,INV-00117-D2,Approve,Amount consistent with historical spend for Customer Success; auto-approved.,,,2025-04-15 07:16:00
+DEC-00029-D2,COMP-01,INV-00096-D2,Flag for Review,Invoice date falls outside normal billing cycle for this vendor.,,,2025-12-10 01:04:00
+DEC-00030-D2,COMP-01,INV-00147-D2,Approve,Amount consistent with historical spend for Marketing; auto-approved.,,,2025-07-06 04:34:00
+DEC-00031-D2,COMP-01,INV-00124-D2,Approve,Amount consistent with historical spend for R&D; auto-approved.,,,2026-01-18 22:02:00
+DEC-00032-D2,COMP-01,INV-00125-D2,Reject,Invoice amount exceeds remaining R&D budget allocation.,,,2025-06-14 11:06:00
+DEC-00033-D2,COMP-01,INV-00005-D2,Reject,Vendor flagged as Medium risk with prior fraud indicators.,,,2026-03-29 22:41:00
+DEC-00034-D2,COMP-01,INV-00001-D2,Flag for Review,Invoice date falls outside normal billing cycle for this vendor.,,,2025-11-09 19:50:00
+DEC-00035-D2,COMP-01,INV-00069-D2,Approve,Invoice matches purchase order and vendor risk profile is Low; amount within department budget.,,,2026-06-03 10:14:00
+DEC-00036-D2,COMP-01,INV-00071-D2,Approve,Amount consistent with historical spend for Marketing; auto-approved.,,,2026-04-12 10:23:00
+DEC-00037-D2,COMP-01,INV-00053-D2,Approve,Amount consistent with historical spend for Operations; auto-approved.,,,2026-05-17 20:22:00
+DEC-00038-D2,COMP-01,INV-00142-D2,Hold - Duplicate Suspected,Same amount and due date as an existing pending invoice from this vendor.,,,2025-11-21 14:26:00
+DEC-00039-D2,COMP-01,INV-00136-D2,Escalate,Amount exceeds auto-approval threshold and requires finance manager sign-off.,,,2026-07-12 19:22:00
+DEC-00040-D2,COMP-01,INV-00068-D2,Approve,Recurring vendor with consistent billing pattern; no anomalies detected.,,,2026-10-04 19:30:00
+DEC-00041-D2,COMP-01,INV-00093-D2,Approve,Invoice matches purchase order and vendor risk profile is Low; amount within department budget.,,,2025-01-24 10:20:00
+DEC-00042-D2,COMP-01,INV-00151-D2,Approve,Invoice matches purchase order and vendor risk profile is Low; amount within department budget.,,,2026-11-27 03:54:00
+DEC-00043-D2,COMP-01,INV-00150-D2,Approve,Invoice matches purchase order and vendor risk profile is High; amount within department budget.,,,2025-10-10 08:33:00
+DEC-00044-D2,COMP-01,INV-00037-D2,Approve,Invoice matches purchase order and vendor risk profile is Medium; amount within department budget.,,,2026-12-21 00:27:00
+DEC-00045-D2,COMP-01,INV-00122-D2,Hold - Duplicate Suspected,Line items closely match an invoice processed within the last 14 days.,,,2025-10-17 00:11:00
+DEC-00046-D2,COMP-01,INV-00065-D2,Flag for Review,Vendor risk profile is Low; manual verification recommended before payment.,,,2026-11-06 04:47:00
+DEC-00047-D2,COMP-01,INV-00105-D2,Flag for Review,Amount deviates 72% from vendor's historical average invoice value.,,,2026-01-31 07:24:00
+DEC-00048-D2,COMP-01,INV-00090-D2,Approve,Invoice matches purchase order and vendor risk profile is Medium; amount within department budget.,,,2026-12-23 12:48:00
+DEC-00049-D2,COMP-01,INV-00160-D2,Flag for Review,Amount deviates 28% from vendor's historical average invoice value.,,,2025-03-10 21:11:00
+DEC-00050-D2,COMP-01,INV-00146-D2,Approve,Invoice matches purchase order and vendor risk profile is Low; amount within department budget.,,,2026-06-16 15:16:00
+DEC-00051-D2,COMP-01,INV-00104-D2,Flag for Review,Vendor risk profile is Low; manual verification recommended before payment.,,,2025-10-22 17:38:00
+DEC-00052-D2,COMP-01,INV-00023-D2,Approve,Recurring vendor with consistent billing pattern; no anomalies detected.,,,2025-05-11 21:22:00
+DEC-00053-D2,COMP-01,INV-00014-D2,Reject,Vendor flagged as Medium risk with prior fraud indicators.,,,2025-04-28 15:58:00
+DEC-00054-D2,COMP-01,INV-00143-D2,Flag for Review,Amount deviates 32% from vendor's historical average invoice value.,,,2026-10-26 17:07:00
+DEC-00055-D2,COMP-01,INV-00121-D2,Approve,Invoice matches purchase order and vendor risk profile is Medium; amount within department budget.,,,2025-07-20 00:44:00
+DEC-00056-D2,COMP-01,INV-00144-D2,Approve,Recurring vendor with consistent billing pattern; no anomalies detected.,,,2025-05-08 18:36:00
+DEC-00057-D2,COMP-01,INV-00031-D2,Approve,Invoice matches purchase order and vendor risk profile is Low; amount within department budget.,,,2026-02-28 21:44:00
+DEC-00058-D2,COMP-01,INV-00025-D2,Escalate,Amount exceeds auto-approval threshold and requires finance manager sign-off.,,,2025-03-20 15:18:00
+DEC-00059-D2,COMP-01,INV-00080-D2,Approve,Recurring vendor with consistent billing pattern; no anomalies detected.,,,2026-12-21 07:55:00
+DEC-00060-D2,COMP-01,INV-00141-D2,Approve,Invoice matches purchase order and vendor risk profile is Low; amount within department budget.,,,2026-04-14 18:12:00
+DEC-00061-D2,COMP-01,INV-00033-D2,Reject,Vendor flagged as Low risk with prior fraud indicators.,,,2026-10-18 16:26:00
+DEC-00062-D2,COMP-01,INV-00046-D2,Flag for Review,Vendor risk profile is Low; manual verification recommended before payment.,,,2026-02-11 15:10:00
+DEC-00063-D2,COMP-01,INV-00035-D2,Approve,Invoice matches purchase order and vendor risk profile is Low; amount within department budget.,,,2026-03-12 14:02:00
+DEC-00064-D2,COMP-01,INV-00051-D2,Approve,Amount consistent with historical spend for R&D; auto-approved.,,,2025-04-29 22:49:00
+DEC-00065-D2,COMP-01,INV-00011-D2,Approve,Amount consistent with historical spend for Sales; auto-approved.,,,2025-02-24 23:32:00
+DEC-00066-D2,COMP-01,INV-00149-D2,Approve,Invoice matches purchase order and vendor risk profile is Low; amount within department budget.,,,2025-12-28 22:52:00
+DEC-00067-D2,COMP-01,INV-00052-D2,Hold - Duplicate Suspected,Line items closely match an invoice processed within the last 14 days.,,,2026-01-17 22:13:00
+DEC-00068-D2,COMP-01,INV-00059-D2,Hold - Duplicate Suspected,Line items closely match an invoice processed within the last 14 days.,,,2025-08-28 15:55:00
+DEC-00069-D2,COMP-01,INV-00073-D2,Hold - Duplicate Suspected,Same amount and due date as an existing pending invoice from this vendor.,,,2025-03-11 21:55:00
+DEC-00070-D2,COMP-01,INV-00032-D2,Reject,Invoice amount exceeds remaining Customer Success budget allocation.,,,2026-09-28 07:13:00
+DEC-00071-D2,COMP-01,INV-00113-D2,Reject,Vendor flagged as Medium risk with prior fraud indicators.,,,2026-02-08 07:10:00
+DEC-00072-D2,COMP-01,INV-00029-D2,Flag for Review,Amount deviates 41% from vendor's historical average invoice value.,,,2026-10-11 08:36:00
+DEC-00073-D2,COMP-01,INV-00137-D2,Approve,Recurring vendor with consistent billing pattern; no anomalies detected.,,,2026-01-18 22:20:00
+DEC-00074-D2,COMP-01,INV-00132-D2,Hold - Duplicate Suspected,Same amount and due date as an existing pending invoice from this vendor.,,,2025-02-19 11:54:00
+DEC-00075-D2,COMP-01,INV-00084-D2,Approve,Amount consistent with historical spend for IT; auto-approved.,,,2025-02-20 18:48:00
+DEC-00076-D2,COMP-01,INV-00086-D2,Reject,Duplicate invoice number detected for the same vendor and amount.,,,2025-04-24 17:44:00
+DEC-00077-D2,COMP-01,INV-00128-D2,Escalate,Amount exceeds auto-approval threshold and requires finance manager sign-off.,,,2025-11-24 18:53:00
+DEC-00078-D2,COMP-01,INV-00012-D2,Approve,Amount consistent with historical spend for Customer Success; auto-approved.,,,2026-12-19 15:09:00
+DEC-00079-D2,COMP-01,INV-00094-D2,Flag for Review,Vendor risk profile is Low; manual verification recommended before payment.,,,2026-01-08 01:28:00
+DEC-00080-D2,COMP-01,INV-00049-D2,Approve,Invoice matches purchase order and vendor risk profile is Low; amount within department budget.,,,2025-08-17 18:47:00
+DEC-00081-D2,COMP-01,INV-00081-D2,Approve,Recurring vendor with consistent billing pattern; no anomalies detected.,,,2025-05-29 15:20:00
+DEC-00082-D2,COMP-01,INV-00129-D2,Flag for Review,Invoice date falls outside normal billing cycle for this vendor.,,,2025-10-23 11:40:00
+DEC-00083-D2,COMP-01,INV-00061-D2,Flag for Review,Vendor risk profile is Medium; manual verification recommended before payment.,,,2025-01-29 21:25:00
+DEC-00084-D2,COMP-01,INV-00008-D2,Approve,Recurring vendor with consistent billing pattern; no anomalies detected.,,,2026-02-17 16:17:00
+DEC-00085-D2,COMP-01,INV-00123-D2,Approve,Recurring vendor with consistent billing pattern; no anomalies detected.,,,2026-09-14 23:36:00
+DEC-00086-D2,COMP-01,INV-00022-D2,Approve,Recurring vendor with consistent billing pattern; no anomalies detected.,,,2026-04-30 07:02:00
+DEC-00087-D2,COMP-01,INV-00112-D2,Approve,Recurring vendor with consistent billing pattern; no anomalies detected.,,,2026-08-20 16:59:00
+DEC-00088-D2,COMP-01,INV-00064-D2,Escalate,Unusual spend pattern detected across multiple invoices from this vendor this month.,,,2026-04-08 01:27:00
+DEC-00089-D2,COMP-01,INV-00111-D2,Approve,Amount consistent with historical spend for Customer Success; auto-approved.,,,2026-07-27 15:10:00
+DEC-00090-D2,COMP-01,INV-00043-D2,Escalate,Unusual spend pattern detected across multiple invoices from this vendor this month.,,,2025-10-08 23:16:00
+DEC-00091-D2,COMP-01,INV-00107-D2,Approve,Amount consistent with historical spend for Finance; auto-approved.,,,2025-03-05 07:25:00
+DEC-00092-D2,COMP-01,INV-00101-D2,Flag for Review,Invoice date falls outside normal billing cycle for this vendor.,,,2026-10-04 07:41:00
+DEC-00093-D2,COMP-01,INV-00006-D2,Approve,Invoice matches purchase order and vendor risk profile is Medium; amount within department budget.,,,2026-05-20 04:30:00
+DEC-00094-D2,COMP-01,INV-00030-D2,Approve,Amount consistent with historical spend for IT; auto-approved.,,,2025-03-01 19:43:00
+DEC-00095-D2,COMP-01,INV-00028-D2,Approve,Invoice matches purchase order and vendor risk profile is Low; amount within department budget.,,,2026-10-09 16:55:00
+DEC-00096-D2,COMP-01,INV-00078-D2,Approve,Invoice matches purchase order and vendor risk profile is Low; amount within department budget.,,,2026-01-12 10:14:00
+DEC-00097-D2,COMP-01,INV-00098-D2,Approve,Amount consistent with historical spend for Sales; auto-approved.,,,2025-09-20 14:20:00
+DEC-00098-D2,COMP-01,INV-00116-D2,Approve,Recurring vendor with consistent billing pattern; no anomalies detected.,,,2025-12-18 01:49:00
+DEC-00099-D2,COMP-01,INV-00148-D2,Reject,Duplicate invoice number detected for the same vendor and amount.,,,2025-11-10 09:33:00
+DEC-00100-D2,COMP-01,INV-00085-D2,Flag for Review,Invoice date falls outside normal billing cycle for this vendor.,,,2026-03-03 09:22:00
+DEC-00101-D2,COMP-01,INV-00153-D2,Flag for Review,Invoice date falls outside normal billing cycle for this vendor.,,,2026-01-08 05:39:00
+DEC-00102-D2,COMP-01,INV-00138-D2,Flag for Review,Amount deviates 26% from vendor's historical average invoice value.,,,2026-11-04 13:08:00
+DEC-00103-D2,COMP-01,INV-00058-D2,Reject,Vendor flagged as Medium risk with prior fraud indicators.,,,2026-08-03 21:27:00
+DEC-00104-D2,COMP-01,INV-00092-D2,Approve,Invoice matches purchase order and vendor risk profile is High; amount within department budget.,,,2026-08-12 12:41:00
+DEC-00105-D2,COMP-01,INV-00133-D2,Approve,Amount consistent with historical spend for Customer Success; auto-approved.,,,2026-05-27 04:54:00
+DEC-00106-D2,COMP-01,INV-00079-D2,Reject,Invoice amount exceeds remaining Operations budget allocation.,,,2026-07-31 19:38:00
+DEC-00107-D2,COMP-01,INV-00063-D2,Approve,Amount consistent with historical spend for Finance; auto-approved.,,,2025-03-08 14:41:00
+DEC-00108-D2,COMP-01,INV-00083-D2,Approve,Invoice matches purchase order and vendor risk profile is Low; amount within department budget.,,,2025-12-01 02:07:00
+DEC-00109-D2,COMP-01,INV-00021-D2,Approve,Amount consistent with historical spend for IT; auto-approved.,,,2025-09-04 20:56:00
+DEC-00110-D2,COMP-01,INV-00076-D2,Hold - Duplicate Suspected,Same amount and due date as an existing pending invoice from this vendor.,,,2025-10-22 17:24:00
+DEC-00111-D2,COMP-01,INV-00108-D2,Escalate,Unusual spend pattern detected across multiple invoices from this vendor this month.,,,2026-10-26 22:43:00
+DEC-00112-D2,COMP-01,INV-00038-D2,Approve,Recurring vendor with consistent billing pattern; no anomalies detected.,,,2026-12-04 03:37:00
+DEC-00113-D2,COMP-01,INV-00010-D2,Approve,Recurring vendor with consistent billing pattern; no anomalies detected.,,,2025-07-12 06:59:00
+DEC-00114-D2,COMP-01,INV-00099-D2,Approve,Recurring vendor with consistent billing pattern; no anomalies detected.,,,2025-03-20 13:40:00
+DEC-00115-D2,COMP-01,INV-00026-D2,Flag for Review,Vendor risk profile is Medium; manual verification recommended before payment.,,,2026-02-14 04:05:00
+DEC-00116-D2,COMP-01,INV-00115-D2,Flag for Review,Invoice date falls outside normal billing cycle for this vendor.,,,2026-03-11 12:05:00
+DEC-00117-D2,COMP-01,INV-00114-D2,Approve,Amount consistent with historical spend for R&D; auto-approved.,,,2026-10-21 20:34:00
+DEC-00118-D2,COMP-01,INV-00074-D2,Approve,Amount consistent with historical spend for Customer Success; auto-approved.,,,2026-01-18 16:44:00
+DEC-00119-D2,COMP-01,INV-00072-D2,Approve,Invoice matches purchase order and vendor risk profile is High; amount within department budget.,,,2026-11-14 08:05:00
+DEC-00120-D2,COMP-01,INV-00131-D2,Escalate,Amount exceeds auto-approval threshold and requires finance manager sign-off.,,,2025-06-03 08:19:00
+DEC-00121-D2,COMP-01,INV-00042-D2,Flag for Review,Invoice date falls outside normal billing cycle for this vendor.,,,2026-03-02 16:00:00
+DEC-00122-D2,COMP-01,INV-00103-D2,Flag for Review,Invoice date falls outside normal billing cycle for this vendor.,,,2026-06-04 21:31:00
+DEC-00123-D2,COMP-01,INV-00057-D2,Hold - Duplicate Suspected,Same amount and due date as an existing pending invoice from this vendor.,,,2026-10-22 00:08:00
+DEC-00124-D2,COMP-01,INV-00075-D2,Flag for Review,Vendor risk profile is High; manual verification recommended before payment.,,,2026-11-18 04:21:00
+DEC-00125-D2,COMP-01,INV-00088-D2,Reject,Invoice amount exceeds remaining Operations budget allocation.,,,2025-11-05 09:16:00
+DEC-00126-D2,COMP-01,INV-00145-D2,Flag for Review,Invoice date falls outside normal billing cycle for this vendor.,,,2026-02-02 16:29:00
+DEC-00127-D2,COMP-01,INV-00156-D2,Approve,Invoice matches purchase order and vendor risk profile is Medium; amount within department budget.,,,2025-01-27 22:23:00
+DEC-00128-D2,COMP-01,INV-00100-D2,Approve,Invoice matches purchase order and vendor risk profile is Low; amount within department budget.,,,2026-08-18 06:47:00
+DEC-00129-D2,COMP-01,INV-00109-D2,Approve,Invoice matches purchase order and vendor risk profile is High; amount within department budget.,,,2026-09-18 08:02:00
+DEC-00130-D2,COMP-01,INV-00097-D2,Approve,Recurring vendor with consistent billing pattern; no anomalies detected.,,,2025-12-24 23:59:00

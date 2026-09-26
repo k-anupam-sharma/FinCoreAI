@@ -78,3 +78,15 @@ sequenceDiagram
    npx supabase db push
    ```
 5. Configure the Meta App Dashboard Webhook to point to the Supabase Edge Function URL.
+
+## Database Seeding & Mock Data Cleanup
+
+The raw mock datasets provided for this project had several structural inconsistencies (e.g., mismatched foreign keys with `-D` tags, empty numeric and date fields, missing company IDs, and extra columns). 
+
+Robust automated Node.js cleanup scripts (`scripts/data-cleanup/`) were written and executed to sanitize this data perfectly:
+- Stripped unnecessary trailing strings and `-D` suffixes specifically for foreign keys to match the `companies` table.
+- Filled in completely blank numeric and date fields with safe database defaults (e.g., `0.0` or `2024-01-01`) to prevent PostgreSQL syntax errors.
+- Preemptively nullified or corrected broken foreign key references (such as mock users that do not exist in the `users` table).
+- Automatically mapped all missing `company_id` values to `COMP-01`.
+
+The fully sanitized, database-ready CSV files are located in the `docs/clean-datasets` folder. These files can be safely imported directly into their respective tables via the Supabase Dashboard Table Editor with zero constraint errors.

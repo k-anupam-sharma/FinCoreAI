@@ -33,3 +33,5 @@ code_template.zip
 *.key
 *credentials*.json
 *service-account*.json
+
+FinCore datasets/
