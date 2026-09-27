@@ -115,20 +115,39 @@ interface SendWhatsAppTextResult {
   error?: string;
 }
 
-async function sendWhatsAppText(to: string, body: string, accessToken: string, phoneNumberId: string): Promise<SendWhatsAppTextResult> {
+interface WhatsAppButton {
+  id: string;
+  title: string;
+}
+
+async function sendWhatsAppText(to: string, body: string, accessToken: string, phoneNumberId: string, buttons?: WhatsAppButton[]): Promise<SendWhatsAppTextResult> {
   try {
+    const payload: Record<string, unknown> = {
+      messaging_product: "whatsapp",
+      to,
+    };
+    
+    if (buttons && buttons.length > 0) {
+      payload.type = "interactive";
+      payload.interactive = {
+        type: "button",
+        body: { text: body },
+        action: {
+          buttons: buttons.map(b => ({ type: "reply", reply: { id: b.id, title: b.title } }))
+        }
+      };
+    } else {
+      payload.type = "text";
+      payload.text = { body };
+    }
+
     const response = await fetchWithTimeout(`https://graph.facebook.com/${GRAPH_API_VERSION}/${phoneNumberId}/messages`, {
       method: "POST",
       headers: {
         Authorization: `Bearer ${accessToken}`,
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({
-        messaging_product: "whatsapp",
-        to,
-        type: "text",
-        text: { body },
-      }),
+      body: JSON.stringify(payload),
     });
 
     const data = await response.json();
@@ -1389,6 +1408,23 @@ async function clearChatHistory(supabase: SupabaseClient, sessionId: string): Pr
   return "FinCore chat history has been cleared from the backend. Your invoices, files, analyses, account, and financial data were not changed. To remove the messages already visible in WhatsApp, delete this chat from WhatsApp too.";
 }
 
+async function restartLoginProcess(supabase: SupabaseClient, sessionId: string, waId: string): Promise<string> {
+  const { error: unlinkError } = await supabase
+    .from("whatsapp_accounts")
+    .update({ status: "unlinked" })
+    .eq("wa_id", waId)
+    .eq("status", "active");
+  if (unlinkError) throw unlinkError;
+
+  const { error: resetError } = await supabase
+    .from("conversation_sessions")
+    .update({ state: "new", context: {}, last_message_at: new Date().toISOString() })
+    .eq("id", sessionId);
+  if (resetError) throw resetError;
+
+  return "Your session has been restarted. Type 'Hi' to begin the setup or login process again.";
+}
+
 interface NaturalLanguageIntent {
   intent: "menu" | "alerts" | "workflow_action" | "forecast" | "qna" | "unknown";
   action: "approve" | "review" | "defer" | "reject" | null;
@@ -2388,6 +2424,8 @@ Deno.serve(async (req) => {
           const normalizedContent = content.trim().toLowerCase();
           if (/^(clear|clear chat|clear history|delete chat|delete history)$/.test(normalizedContent)) {
             replyText = await clearChatHistory(supabase, sessionId);
+          } else if (normalizedContent === "restart" || normalizedContent === "restart login") {
+            replyText = await restartLoginProcess(supabase, sessionId, waId);
           } else {
             const numericReply = await handleNumericMenu(supabase, linkedUser.company_id, content);
             const forecastReply = numericReply ?? await handleForecastCommand(supabase, linkedUser.company_id, content);
@@ -2421,7 +2459,8 @@ Deno.serve(async (req) => {
       });
       if (outboundInsertError) throw outboundInsertError;
 
-      const sendResult = await sendWhatsAppText(waId, replyText, ACCESS_TOKEN, PHONE_NUMBER_ID);
+      const buttons = replyText.includes("Main menu") ? [{ id: "restart", title: "Restart Login" }] : undefined;
+      const sendResult = await sendWhatsAppText(waId, replyText, ACCESS_TOKEN, PHONE_NUMBER_ID, buttons);
       if (!sendResult.success) {
         console.error(`whatsapp-webhook: failed to send reply to ${waId}: ${sendResult.error}`);
       }
