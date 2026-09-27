@@ -720,8 +720,8 @@ async function analyzeStoredInvoice(
   if (!mimeType.startsWith("image/")) {
     return { success: false, summary: "The invoice is stored safely. PDF extraction will be enabled in the next extraction update." };
   }
-  if (!AI_API_TOKEN) {
-    console.error("whatsapp-webhook: AI token is not configured");
+  if (!GROQ_API_KEY) {
+    console.error("whatsapp-webhook: Groq API token is not configured");
     return { success: false, summary: "The invoice is stored safely, but extraction is temporarily unavailable." };
   }
 
@@ -739,16 +739,14 @@ async function analyzeStoredInvoice(
       "Use YYYY-MM-DD dates, numbers for monetary values, confidence from 0 to 1, and an array of line_items with description, quantity, unit_price, amount.",
       "Use null for any missing or unreadable value. Never guess, infer, or calculate a missing value.",
     ].join(" ");
-    const response = await fetchWithTimeout(`${AI_API_BASE}/code/api/v1/ai/chat/completions`, {
+    const response = await fetchWithTimeout(`${GROQ_API_BASE}/chat/completions`, {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${AI_API_TOKEN}`,
+        Authorization: `Bearer ${GROQ_API_KEY}`,
         "Content-Type": "application/json",
-        "X-Enter-Project-ID": AI_PROJECT_ID,
-        "X-Session-ID": `invoice-${invoiceId}`,
       },
       body: JSON.stringify({
-        model: OCR_MODEL,
+        model: "llama-3.2-90b-vision-preview",
         stream: false,
         temperature: 0,
         max_tokens: 1800,
