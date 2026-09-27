@@ -45,17 +45,16 @@ async function fetchWithTimeout(input: RequestInfo | URL, init: RequestInit = {}
 }
 
 async function callEnterAI(systemPrompt: string, userText: string, maxOutputTokens = 500): Promise<string | null> {
-  if (!ENTER_AI_API_KEY) return null;
+  if (!GROQ_API_KEY) return null;
   try {
-    const response = await fetchWithTimeout(`${ENTER_AI_API_BASE}/chat/completions`, {
+    const response = await fetchWithTimeout(`${GROQ_API_BASE}/chat/completions`, {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${ENTER_AI_API_KEY}`,
+        Authorization: `Bearer ${GROQ_API_KEY}`,
         "Content-Type": "application/json",
-        "X-Enter-Project-ID": AI_PROJECT_ID,
       },
       body: JSON.stringify({
-        model: "meta/llama-3.1-70b-instruct",
+        model: "llama-3.3-70b-versatile",
         messages: [
           { role: "system", content: systemPrompt },
           { role: "user", content: userText },
@@ -277,8 +276,8 @@ const AI_API_TOKEN = Deno.env.get("AI_API_TOKEN_207130282296") ?? "";
 const AI_API_BASE = "https://api.enter.pro";
 const AI_PROJECT_ID = "20713028229644c2839e687ec9379bee";
 const OCR_MODEL = "alibaba/qwen-3.7-plus";
-const ENTER_AI_API_KEY = Deno.env.get("ENTER_AI_API_KEY") ?? "";
-const ENTER_AI_API_BASE = "https://api.enter.pro/v1";
+const GROQ_API_KEY = Deno.env.get("GROQ_API_KEY") ?? "";
+const GROQ_API_BASE = "https://api.groq.com/openai/v1";
 const ALLOWED_INVOICE_TYPES = new Set(["application/pdf", "image/jpeg", "image/png"]);
 
 // ---- Safe Query Executor (Hybrid Layer 2) ----
