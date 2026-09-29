@@ -1,0 +1,1 @@
+UPDATE conversation_sessions SET state = 'new', context = '{}'::jsonb WHERE wa_id = '919380650261';

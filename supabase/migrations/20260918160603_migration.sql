@@ -1,0 +1,1 @@
+UPDATE whatsapp_accounts SET status = 'unlinked' WHERE wa_id = '919380650261' AND user_id = 'USR-98C2A9A3'; UPDATE conversation_sessions SET state = 'new', context = '{}'::jsonb WHERE wa_id = '919380650261';

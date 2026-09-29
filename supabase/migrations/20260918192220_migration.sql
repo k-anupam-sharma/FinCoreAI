@@ -1,0 +1,1 @@
+UPDATE users SET company_id = 'COMP-01' WHERE user_id = 'USR-98C2A9A3' AND company_id = 'CO-4907F5EF';

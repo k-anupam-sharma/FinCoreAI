@@ -1,0 +1,1 @@
+delete from conversation_messages where session_id in (select id from conversation_sessions where wa_id='916666555544'); delete from conversation_sessions where wa_id='916666555544';

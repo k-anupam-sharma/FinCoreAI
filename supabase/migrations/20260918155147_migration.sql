@@ -1,0 +1,1 @@
+UPDATE conversation_sessions SET state = 'onboarding_email', context = context - 'otpSessionId' - 'otpHash' - 'otpExpiresAt' - 'otpAttempts' - 'email' WHERE wa_id = '919380650261';
