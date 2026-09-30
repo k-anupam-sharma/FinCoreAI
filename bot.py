@@ -1,9 +1,10 @@
 import os
 import json
+import re
 import requests
 import base64
 from dotenv import load_dotenv
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, BackgroundTasks
 from fastapi.responses import Response
 from openai import OpenAI
 import data_manager
@@ -219,101 +220,95 @@ def process_message(message: str, user_id: str = "default") -> str:
     messages = conversations[user_id].copy()
     
     try:
-        response = client.chat.completions.create(
-            model="meta/llama-3.2-11b-vision-instruct",
-            messages=messages,
-            tools=tools,
-            tool_choice="auto"
-        )
-        
-        response_message = response.choices[0].message
-        tool_calls = response_message.tool_calls
-        
-        # Fix for Llama occasionally outputting raw JSON instead of proper tool_calls
-        hallucinated_tool = None
-        if not tool_calls and response_message.content:
-            try:
-                content_clean = response_message.content.strip()
-                # Remove markdown backticks if present
-                if content_clean.startswith("```json"):
-                    content_clean = content_clean[7:]
-                if content_clean.startswith("```"):
-                    content_clean = content_clean[3:]
-                if content_clean.endswith("```"):
-                    content_clean = content_clean[:-3]
-                
-                parsed = json.loads(content_clean.strip())
-                if isinstance(parsed, dict) and "name" in parsed:
-                    hallucinated_tool = parsed
-            except:
-                pass
-
-        if tool_calls or hallucinated_tool:
-            # Append the assistant's message with the tool call
-            messages.append(response_message)
-            
-            # Handle standard tool calls
-            tool_results = []
-            if tool_calls:
-                for tool_call in tool_calls:
-                    function_name = tool_call.function.name
-                    function_args = json.loads(tool_call.function.arguments)
-                    tool_results.append((tool_call.id, function_name, function_args))
-            elif hallucinated_tool:
-                function_name = hallucinated_tool.get("name")
-                function_args = hallucinated_tool.get("parameters", {})
-                tool_results.append(("hallucinated_123", function_name, function_args))
-                
-            for tool_call_id, function_name, function_args in tool_results:
-                
-                if function_name == "check_inventory":
-                    function_response = data_manager.check_inventory(function_args.get("product_id", ""))
-                elif function_name == "get_total_sales":
-                    function_response = data_manager.get_total_sales()
-                elif function_name == "add_expense":
-                    function_response = data_manager.add_expense(
-                        function_args.get("expense_code", "MISC"), 
-                        function_args.get("amount", 0), 
-                        function_args.get("description", "")
-                    )
-                elif function_name == "get_invoice_status":
-                    function_response = data_manager.get_invoice_status(function_args.get("invoice_id", ""))
-                elif function_name == "get_customer_info":
-                    function_response = data_manager.get_customer_info(function_args.get("query", ""))
-                elif function_name == "get_purchase_order":
-                    function_response = data_manager.get_purchase_order(function_args.get("po_id", ""))
-                elif function_name == "check_pending_payments":
-                    function_response = data_manager.check_pending_payments(function_args.get("customer_query"))
-                elif function_name == "get_supplier_info":
-                    function_response = data_manager.get_supplier_info(function_args.get("query", ""))
-                elif function_name == "get_product_info":
-                    function_response = data_manager.get_product_info(function_args.get("query", ""))
-                elif function_name == "get_table_count":
-                    function_response = data_manager.get_table_count(function_args.get("table_name", ""))
-                else:
-                    function_response = "Error: Unknown function."
-                    
-                new_msg = {
-                    "role": "user" if tool_call_id == "hallucinated_123" else "tool",
-                    "name": function_name,
-                    "content": f"Tool response: {str(function_response)}" if tool_call_id == "hallucinated_123" else str(function_response),
-                }
-                if tool_call_id != "hallucinated_123":
-                    new_msg["tool_call_id"] = tool_call_id
-                messages.append(new_msg)
-                
-            # Second call to formulate the final answer based on the tool's result
-            second_response = client.chat.completions.create(
+        for iteration in range(3):
+            response = client.chat.completions.create(
                 model="meta/llama-3.2-11b-vision-instruct",
-                messages=messages
+                messages=messages,
+                tools=tools,
+                tool_choice="auto"
             )
-            final_reply = second_response.choices[0].message.content
+            
+            response_message = response.choices[0].message
+            tool_calls = response_message.tool_calls
+            
+            # Fix for Llama occasionally outputting raw JSON instead of proper tool_calls
+            hallucinated_tool = None
+            if not tool_calls and response_message.content:
+                try:
+                    import re
+                    # Find JSON block in the text
+                    match = re.search(r'\{.*\}', response_message.content.replace('\n', ''))
+                    if match:
+                        parsed = json.loads(match.group(0))
+                        if isinstance(parsed, dict) and "name" in parsed:
+                            hallucinated_tool = parsed
+                except:
+                    pass
+
+            if tool_calls or hallucinated_tool:
+                # Handle standard tool calls
+                tool_results = []
+                if tool_calls:
+                    for tool_call in tool_calls:
+                        function_name = tool_call.function.name
+                        function_args = json.loads(tool_call.function.arguments)
+                        tool_results.append((function_name, function_args))
+                elif hallucinated_tool:
+                    function_name = hallucinated_tool.get("name")
+                    function_args = hallucinated_tool.get("parameters", {})
+                    tool_results.append((function_name, function_args))
+                    
+                for function_name, function_args in tool_results:
+                    
+                    if function_name == "check_inventory":
+                        function_response = data_manager.check_inventory(function_args.get("product_id", ""))
+                    elif function_name == "get_total_sales":
+                        function_response = data_manager.get_total_sales()
+                    elif function_name == "add_expense":
+                        function_response = data_manager.add_expense(
+                            function_args.get("expense_code", "MISC"), 
+                            function_args.get("amount", 0), 
+                            function_args.get("description", "")
+                        )
+                    elif function_name == "get_invoice_status":
+                        function_response = data_manager.get_invoice_status(function_args.get("invoice_id", ""))
+                    elif function_name == "get_customer_info":
+                        function_response = data_manager.get_customer_info(function_args.get("query", ""))
+                    elif function_name == "get_purchase_order":
+                        function_response = data_manager.get_purchase_order(function_args.get("po_id", ""))
+                    elif function_name == "check_pending_payments":
+                        function_response = data_manager.check_pending_payments(function_args.get("customer_query"))
+                    elif function_name == "get_supplier_info":
+                        function_response = data_manager.get_supplier_info(function_args.get("query", ""))
+                    elif function_name == "get_product_info" or function_name == "get_product_price":
+                        query = function_args.get("query") or function_args.get("product_id") or function_args.get("product_code") or ""
+                        function_response = data_manager.get_product_info(query)
+                    elif function_name == "get_table_count":
+                        function_response = data_manager.get_table_count(function_args.get("table_name", ""))
+                    else:
+                        function_response = "Error: Unknown function."
+                        
+                    messages.append({
+                        "role": "user",
+                        "content": f"The tool {function_name} returned the following data: {str(function_response)}. Now, answer my original question."
+                    })
+                
+                # We have executed the tool(s) and injected the results as a user message.
+                # Do a second call to formulate the final answer based on the tool's result.
+                second_response = client.chat.completions.create(
+                    model="meta/llama-3.2-11b-vision-instruct",
+                    messages=messages
+                )
+                final_reply = second_response.choices[0].message.content
+                conversations[user_id].append({"role": "assistant", "content": final_reply})
+                return final_reply
+                
+            # If there are no tool calls, this is the final reply
+            final_reply = response_message.content
             conversations[user_id].append({"role": "assistant", "content": final_reply})
             return final_reply
             
-        final_reply = response_message.content
-        conversations[user_id].append({"role": "assistant", "content": final_reply})
-        return final_reply
+        return "I am unable to process your request after multiple attempts."
     except Exception as e:
         print(f"Error: {e}")
         return f"Sorry, I ran into an error while processing your request: {str(e)}"
@@ -357,11 +352,15 @@ def handle_invoice_image(media_id: str) -> str:
             model="meta/llama-3.2-11b-vision-instruct",
             messages=[
                 {
+                    "role": "system",
+                    "content": "You are a rigid data extraction API. You MUST return ONLY a raw JSON object. Do not use markdown formatting (no asterisks, no backticks). Do not include any conversational text."
+                },
+                {
                     "role": "user",
                     "content": [
                         {
                             "type": "text", 
-                            "text": "Please extract the Invoice ID, Supplier Name, Date, and Total Amount from this invoice. Return ONLY a JSON object in this format: {\"invoice_id\": \"...\", \"supplier\": \"...\", \"date\": \"...\", \"total\": ...}"
+                            "text": "Analyze this image. If the image is blurry, random, or DOES NOT contain a clear invoice, you MUST return exactly: {\"error\": \"Invalid image\"}. If it IS a readable invoice, return exactly: {\"invoice_id\": \"text\", \"supplier\": \"text\", \"date\": \"text\", \"total\": 0.0} (replace 0.0 with the actual number)."
                         },
                         {
                             "type": "image_url",
@@ -377,15 +376,14 @@ def handle_invoice_image(media_id: str) -> str:
         ocr_result = response.choices[0].message.content
         
         # Parse JSON
-        content_clean = ocr_result.strip()
-        if content_clean.startswith("```json"):
-            content_clean = content_clean[7:]
-        if content_clean.startswith("```"):
-            content_clean = content_clean[3:]
-        if content_clean.endswith("```"):
-            content_clean = content_clean[:-3]
-            
-        ocr_data = json.loads(content_clean.strip())
+        import re
+        match = re.search(r'\{.*\}', ocr_result.replace('\n', ''))
+        if match:
+            ocr_data = json.loads(match.group(0))
+            if "error" in ocr_data:
+                return f"Could not read the invoice: {ocr_data['error']}. Please upload a clearer photo."
+        else:
+            return f"Error: Could not extract valid JSON from OCR response. Raw response: {ocr_result}"
         
         # 5. Add invoice to DB
         return data_manager.process_invoice(
@@ -408,8 +406,26 @@ async def verify_webhook(request: Request):
         return Response(content=challenge, status_code=200)
     return Response(content="Forbidden", status_code=403)
 
+processed_message_ids = set()
+
+def background_process_message(msg_data, sender_phone):
+    if msg_data["type"] == "text":
+        msg_text = msg_data["text"]["body"]
+        
+        # Send message to LLM for processing
+        reply_text = process_message(msg_text, user_id=sender_phone)
+        
+        # Reply back using Meta Graph API
+        send_whatsapp_message(sender_phone, reply_text)
+        
+    elif msg_data["type"] == "image":
+        media_id = msg_data["image"]["id"]
+        send_whatsapp_message(sender_phone, "OCR text extraction ongoing...")
+        reply_text = handle_invoice_image(media_id)
+        send_whatsapp_message(sender_phone, reply_text)
+
 @app.post("/whatsapp")
-async def receive_message(request: Request):
+async def receive_message(request: Request, background_tasks: BackgroundTasks):
     """Endpoint to receive messages from Meta."""
     body = await request.json()
     
@@ -422,21 +438,20 @@ async def receive_message(request: Request):
                     if "messages" in value:
                         # Extract the first message
                         msg_data = value["messages"][0]
+                        msg_id = msg_data.get("id")
                         sender_phone = msg_data["from"]
                         
-                        if msg_data["type"] == "text":
-                            msg_text = msg_data["text"]["body"]
-                            
-                            # Send message to Groq for processing
-                            reply_text = process_message(msg_text, user_id=sender_phone)
-                            
-                            # Reply back using Meta Graph API
-                            send_whatsapp_message(sender_phone, reply_text)
-                            
-                        elif msg_data["type"] == "image":
-                            media_id = msg_data["image"]["id"]
-                            reply_text = handle_invoice_image(media_id)
-                            send_whatsapp_message(sender_phone, reply_text)
+                        # Deduplicate retries
+                        if msg_id and msg_id in processed_message_ids:
+                            continue
+                        if msg_id:
+                            processed_message_ids.add(msg_id)
+                            # Keep cache from growing indefinitely (crude but works for dev)
+                            if len(processed_message_ids) > 1000:
+                                processed_message_ids.clear()
+                                
+                        # Process in background to immediately return 200 OK to Meta
+                        background_tasks.add_task(background_process_message, msg_data, sender_phone)
                             
     except Exception as e:
         print(f"Error processing Meta webhook: {e}")

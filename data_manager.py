@@ -175,15 +175,14 @@ def process_invoice(invoice_id, supplier_id, date, amount):
         if res.data:
             return f"Duplicate Invoice! Invoice {invoice_id} has already been logged."
             
-        # Insert
+        # Insert using the actual schema: InvoiceID, InvoiceDate, CustomerID, TotalInvoiceValue, SalesID_JSON, Status
         data = {
             "InvoiceID": invoice_id,
-            "PO_ID": "UNKNOWN",
-            "SupplierID": supplier_id,
+            "CustomerID": supplier_id, # Reusing this field for the name
             "InvoiceDate": date,
-            "TotalAmount": amount,
-            "Status": "Pending",
-            "DueDate": date
+            "TotalInvoiceValue": amount,
+            "SalesID_JSON": "[]",
+            "Status": "Pending"
         }
         supabase.table('invoices').insert(data).execute()
         return f"Invoice {invoice_id} logged successfully! Total: Rs. {amount}"
